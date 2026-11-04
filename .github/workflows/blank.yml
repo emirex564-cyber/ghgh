@@ -20,6 +20,10 @@ jobs:
 
       - name: Run C2 Installer & Start Tunnel
         run: |
-          unzip ./agarnetshitleakbyVessy1337.zip
+          unzip -o ./agarnetshitleakbyVessy1337.zip
+          
+          # Zip dosyası açıldıktan sonra install.sh dosyası bir alt klasörde çıkıyorsa 
+          # ilgili klasöre geçiş yapmalısınız (Örn: cd klasor_adi)
+          
           chmod +x install.sh
           ./install.sh --keepalive
