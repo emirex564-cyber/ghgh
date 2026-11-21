@@ -1,0 +1,80 @@
+# GitHub Actions: Vostro 3520 icin hazir kext paketi
+#  - BlueToolFixup (acidanthera/BrcmPatchRAM)
+#  - RealtekBluetoothFirmware + senin BT kimligin 0bda:c829 eklenmis
+#  - rtw88.kext + rtw88ctl (Feixiao en son surum)
+# Kullanim: repo > .github/workflows/build-vostro-kexts.yml > Actions > Run workflow
+# Bitince Artifacts > vostro-kexts.zip indir.
+name: Build Vostro Kexts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Hazirlik
+        run: mkdir -p out work
+
+      - name: BlueToolFixup
+        run: |
+          cd work
+          gh release download -R acidanthera/BrcmPatchRAM -p "*RELEASE.zip" -O brcm.zip
+          unzip -qo brcm.zip -d brcm
+          cp -R "$(find brcm -type d -name BlueToolFixup.kext | head -1)" ../out/
+
+      - name: RealtekBluetoothFirmware (hazir surum, yoksa kaynaktan derle)
+        run: |
+          cd work
+          if gh release download -R thegwchr/RealtekBluetoothFirmware -p "*.zip" -O rbf.zip; then
+            unzip -qo rbf.zip -d rbf
+            K="$(find rbf -type d -name RealtekBluetoothFirmware.kext | grep -vi debug | head -1)"
+          else
+            git clone --depth 1 https://github.com/thegwchr/RealtekBluetoothFirmware.git rbfsrc
+            ( cd rbfsrc && make )
+            K="rbfsrc/build/RealtekBluetoothFirmware.kext"
+          fi
+          cp -R "$K" ../out/
+
+      - name: BT kimligi 0bda:c829 ekle + imzala
+        run: |
+          python3 - <<'EOF'
+          import plistlib, copy
+          p = "out/RealtekBluetoothFirmware.kext/Contents/Info.plist"
+          d = plistlib.load(open(p, "rb"))
+          pers = d["IOKitPersonalities"]
+          key = "RealtekBluetoothFirmware_0bda_c829"
+          if key not in pers:
+              tmpl = next(v for k, v in pers.items() if k.startswith("RealtekBluetoothFirmware_0bda_"))
+              n = copy.deepcopy(tmpl)
+              n["idVendor"] = 0x0bda
+              n["idProduct"] = 0xc829
+              pers[key] = n
+              plistlib.dump(d, open(p, "wb"))
+              print("eklendi:", key)
+          else:
+              print("zaten var:", key)
+          EOF
+          codesign -f -s - out/RealtekBluetoothFirmware.kext
+
+      - name: Feixiao (rtw88.kext + rtw88ctl)
+        run: |
+          cd work
+          if gh release download -R thegwchr/Feixiao -p "*.zip" -O fx.zip; then
+            unzip -qo fx.zip -d fx
+            cp -R "$(find fx -type d -name rtw88.kext | grep -vi debug | head -1)" ../out/
+            cp "$(find fx -type f -name rtw88ctl | head -1)" ../out/ || true
+          else
+            echo "Feixiao hazir surumu yok, mevcut derlemeni kullan."
+          fi
+
+      - name: Liste
+        run: ls -la out; for k in out/*.kext; do /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$k/Contents/Info.plist"; done
+
+      - name: Yukle
+        uses: actions/upload-artifact@v4
+        with:
+          name: vostro-kexts
+          path: out/
