@@ -980,8 +980,268 @@ jobs:
           name: k-app
           path: out/
 
+  alc:
+    runs-on: macos-15
+    env:
+      PROJECT_TYPE: KEXT
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: acidanthera/AppleALC
+          ref: "1.9.8"
+          path: alc
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: acidanthera/MacKernelSDK
+          path: alc/MacKernelSDK
+          persist-credentials: false
+      - name: Lilu (debug) hazirla
+        working-directory: alc
+        run: |
+          src=$(/usr/bin/curl -Lfs https://raw.githubusercontent.com/acidanthera/Lilu/master/Lilu/Scripts/bootstrap.sh) && eval "$src" || exit 1
+          ls -d Lilu.kext
+      - name: CS8409 kaynaklarini ekle
+        working-directory: alc
+        run: |
+          mkdir -p Resources/CS8409
+          cat > Resources/CS8409/Info.plist <<'XEOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          	<key>Author</key>
+          	<string>Vostro3520 (Linux cs8409 Warlock MLK port)</string>
+          	<key>CodecID</key>
+          	<integer>33801</integer>
+          	<key>CodecName</key>
+          	<string>CS8409</string>
+          	<key>Files</key>
+          	<dict>
+          		<key>Layouts</key>
+          		<array>
+          			<dict>
+          				<key>Comment</key>
+          				<string>Dell Vostro 3520 CS8409 Warlock MLK</string>
+          				<key>Id</key>
+          				<integer>7</integer>
+          				<key>Path</key>
+          				<string>layout7.xml.zlib</string>
+          			</dict>
+          		</array>
+          		<key>Platforms</key>
+          		<array>
+          			<dict>
+          				<key>Comment</key>
+          				<string>Dell Vostro 3520 CS8409 Warlock MLK</string>
+          				<key>Id</key>
+          				<integer>7</integer>
+          				<key>Path</key>
+          				<string>Platforms7.xml.zlib</string>
+          			</dict>
+          		</array>
+          	</dict>
+          	<key>Patches</key>
+          	<array/>
+          	<key>Vendor</key>
+          	<string>CirrusLogic</string>
+          </dict>
+          </plist>
+          XEOF
+          cat > Resources/CS8409/layout7.xml <<'XEOF'
+          <dict>
+          	<key>LayoutID</key>
+          	<integer>7</integer>
+          	<key>PathMapRef</key>
+          	<array>
+          		<dict>
+          			<key>CodecID</key>
+          			<array>
+          				<integer>269714441</integer>
+          			</array>
+          			<key>Headphone</key>
+          			<dict/>
+          			<key>Inputs</key>
+          			<array>
+          				<string>Mic</string>
+          			</array>
+          			<key>IntSpeaker</key>
+          			<dict/>
+          			<key>Mic</key>
+          			<dict/>
+          			<key>Outputs</key>
+          			<array>
+          				<string>IntSpeaker</string>
+          				<string>Headphone</string>
+          			</array>
+          			<key>PathMapID</key>
+          			<integer>7</integer>
+          		</dict>
+          	</array>
+          </dict>
+          XEOF
+          cat > Resources/CS8409/Platforms7.xml <<'XEOF'
+          <dict>
+          	<key>CommonPeripheralDSP</key>
+          	<array>
+          		<dict>
+          			<key>DeviceID</key>
+          			<integer>0</integer>
+          			<key>DeviceType</key>
+          			<string>Headphone</string>
+          		</dict>
+          		<dict>
+          			<key>DeviceID</key>
+          			<integer>0</integer>
+          			<key>DeviceType</key>
+          			<string>Microphone</string>
+          		</dict>
+          	</array>
+          	<key>PathMaps</key>
+          	<array>
+          		<dict>
+          			<key>PathMap</key>
+          			<array>
+          				<array>
+          					<array>
+          						<array>
+          							<dict>
+          								<key>Amp</key>
+          								<dict>
+          									<key>Channels</key>
+          									<array>
+          										<dict>
+          											<key>Bind</key>
+          											<integer>1</integer>
+          											<key>Channel</key>
+          											<integer>1</integer>
+          										</dict>
+          										<dict>
+          											<key>Bind</key>
+          											<integer>2</integer>
+          											<key>Channel</key>
+          											<integer>2</integer>
+          										</dict>
+          									</array>
+          									<key>MuteInputAmp</key>
+          									<true/>
+          									<key>PublishMute</key>
+          									<true/>
+          									<key>PublishVolume</key>
+          									<true/>
+          									<key>VolumeInputAmp</key>
+          									<true/>
+          								</dict>
+          								<key>NodeID</key>
+          								<integer>34</integer>
+          							</dict>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>68</integer>
+          							</dict>
+          						</array>
+          					</array>
+          				</array>
+          				<array>
+          					<array>
+          						<array>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>44</integer>
+          							</dict>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>10</integer>
+          							</dict>
+          						</array>
+          					</array>
+          				</array>
+          				<array>
+          					<array>
+          						<array>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>36</integer>
+          							</dict>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>2</integer>
+          							</dict>
+          						</array>
+          					</array>
+          				</array>
+          			</array>
+          			<key>PathMapID</key>
+          			<integer>7</integer>
+          		</dict>
+          	</array>
+          </dict>
+          XEOF
+          cat > /tmp/pin_entry.plist <<'XEOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          	<key>AFGLowPowerState</key>
+          	<data>
+          	AAAAAA==
+          	</data>
+          	<key>Codec</key>
+          	<string>Dell Vostro 3520 CS8409 (Warlock MLK)</string>
+          	<key>CodecID</key>
+          	<integer>269714441</integer>
+          	<key>ConfigData</key>
+          	<data>
+          	ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIEdAqABHUA
+          	GQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1ADoEdAgABHUAAwR0
+          	gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQoPwR1AAgEdIBcBHUACQR0ACME
+          	dQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBoBHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDF
+          	BHQAAAR1AMAEdAAAABcWPwAXFyIAFxUCAsccEALHHQACxx4XAscfkAJHHCACRx0gAkce
+          	IgJHHwQERxwwBEcdAARHHqYERx+QA0cc8ANHHREDRx4RA0cfQQ==
+          	</data>
+          	<key>FuncGroup</key>
+          	<integer>1</integer>
+          	<key>LayoutID</key>
+          	<integer>7</integer>
+          	<key>WakeConfigData</key>
+          	<data>
+          	ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIEdAqABHUA
+          	GQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1ADoEdAgABHUAAwR0
+          	gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQoPwR1AAgEdIBcBHUACQR0ACME
+          	dQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBoBHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDF
+          	BHQAAAR1AMAEdAAAABcWPwAXFyIAFxUC
+          	</data>
+          	<key>WakeVerbReinit</key>
+          	<true/>
+          </dict>
+          </plist>
+          XEOF
+          python3 - <<'PYEOF'
+          import plistlib
+          p='Resources/PinConfigs.kext/Contents/Info.plist'
+          d=plistlib.load(open(p,'rb'))
+          e=plistlib.load(open('/tmp/pin_entry.plist','rb'))
+          lst=d['IOKitPersonalities']['as.vit9696.AppleALC']['HDAConfigDefault']
+          lst[:]=[x for x in lst if not (x.get('CodecID')==e['CodecID'] and x.get('LayoutID')==e['LayoutID'])]
+          lst.append(e)
+          plistlib.dump(d,open(p,'wb'))
+          print('pinconfig eklendi', len(lst))
+          PYEOF
+      - name: Derle
+        working-directory: alc
+        run: |
+          xcodebuild -jobs 2 -configuration Release -arch x86_64 2>&1 | tail -40
+          K="$(find build -type d -name AppleALC.kext -path '*Release*' | head -1)"
+          test -n "$K"
+          strings "$K/Contents/MacOS/AppleALC" | grep -c CS8409
+          mkdir -p ../out && cp -R "$K" ../out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k-alc
+          path: out/
+
   paket:
-    needs: [wex, bt, app]
+    needs: [wex, bt, app, alc]
     runs-on: macos-15
     steps:
       - uses: actions/download-artifact@v4
@@ -996,127 +1256,139 @@ jobs:
         with:
           name: k-app
           path: kx
+      - uses: actions/download-artifact@v4
+        with:
+          name: k-alc
+          path: kx
       - name: Paketle
         run: |
           base64 -D > p.tgz <<'B64'
-          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
+          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
           B64
           tar xzf p.tgz
-          cp -R kx/WhateverXe.kext kx/RealtekBluetoothFirmware.kext kx/Vostrointosh.app kx/alc-verb vostro-paket/
+          cp -R kx/WhateverXe.kext kx/RealtekBluetoothFirmware.kext kx/Vostrointosh.app kx/alc-verb kx/AppleALC.kext vostro-paket/
           chmod 755 vostro-paket/*.sh vostro-paket/*.command vostro-paket/Vostrointosh.app/Contents/MacOS/Vostrointosh vostro-paket/alc-verb
           xattr -cr vostro-paket || true
           ditto -c -k --keepParent vostro-paket vostro-paket.zip
