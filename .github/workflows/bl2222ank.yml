@@ -414,17 +414,16 @@ jobs:
           rep("""uint32_t XE::wrapDisplay13EnablePort(void *port) {
            auto s=callbackXE;""","""uint32_t XE::wrapDisplay13EnablePort(void *port) {
            auto s=callbackXE;
-           if(vostroKeepPort(port)){uint32_t b=0;if(vostroLinkLive(b)){vostroRecord("keep: DDI A enable atlandi buf=%08x",b);return 0;}
+           if(vostroKeepPort(port,(s->adlnOutputWiring.panel&1U)!=0)){uint32_t b=0;if(vostroLinkLive(b)){vostroRecord("keep: DDI A enable atlandi buf=%08x",b);return 0;}
             vostroRecord("keep: baglanti canli degil buf=%08x, normal enable",b);}""")
           rep("""uint32_t XE::wrapDisplay13DisablePort(void *port) {
            auto s=callbackXE;""","""uint32_t XE::wrapDisplay13DisablePort(void *port) {
            auto s=callbackXE;
-           if(vostroKeepPort(port)){uint32_t b=0;vostroLinkLive(b);vostroRecord("keep: DDI A disable atlandi buf=%08x",b);return 0;}""")
+           if(vostroKeepPort(port,(s->adlnOutputWiring.panel&1U)!=0)){uint32_t b=0;vostroLinkLive(b);vostroRecord("keep: DDI A disable atlandi buf=%08x",b);return 0;}""")
           rep("""uint32_t XE::wrapDisplay13PortTraining(void *port,void *request) {
-           auto s=callbackXE;auto &c=display13FBPower;""","""static bool vostroKeepPort(void *port) {
-           auto s=callbackXE;
+           auto s=callbackXE;auto &c=display13FBPower;""","""static bool vostroKeepPort(void *port,bool panelA) {
            return vostroKnobs().keep && vostroGOP.valid && (vostroGOP.buf&0x80000000U) && port &&
-            Display13FBMemory::field<uint32_t>(port,0x120)==0 && (s->adlnOutputWiring.panel&1U);
+            Display13FBMemory::field<uint32_t>(port,0x120)==0 && panelA;
           }
           static bool vostroLinkLive(uint32_t &buf) {
            auto &c=display13FBPower;if(!c.map)return false;
@@ -433,7 +432,7 @@ jobs:
           }
           uint32_t XE::wrapDisplay13PortTraining(void *port,void *request) {
            auto s=callbackXE;auto &c=display13FBPower;
-           if(vostroKeepPort(port)){uint32_t b=0;if(vostroLinkLive(b)){vostroRecord("keep: egitim atlandi, BIOS baglantisi korunuyor buf=%08x",b);return 0;}}""")
+           if(vostroKeepPort(port,(s->adlnOutputWiring.panel&1U)!=0)){uint32_t b=0;if(vostroLinkLive(b)){vostroRecord("keep: egitim atlandi, BIOS baglantisi korunuyor buf=%08x",b);return 0;}}""")
           open(path, "w").write(s)
           print("patched v15")
           PYEOF
