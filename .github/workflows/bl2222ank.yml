@@ -434,8 +434,445 @@ jobs:
           name: k-bt
           path: out/
 
+  app:
+    runs-on: macos-15
+    steps:
+      - name: Vostrointosh derle
+        run: |
+          mkdir -p src && cat > src/Vostrointosh.swift <<'SWEOF'
+          // Vostrointosh - Dell Vostro 3520 Hackintosh menu bar araci (macOS 13 Ventura+)
+          // Wi-Fi (rtw88ctl), ses cikisi secimi (CoreAudio), Bluetooth/ekran durumu, log alma.
+          import SwiftUI
+          import AppKit
+          import CoreAudio
+
+          // MARK: - Komut calistirma
+
+          @discardableResult
+          func shell(_ cmd: String, admin: Bool = false) -> (code: Int32, out: String) {
+              let p = Process()
+              if admin {
+                  let esc = cmd.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+                  p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+                  p.arguments = ["-e", "do shell script \"\(esc)\" with administrator privileges"]
+              } else {
+                  p.executableURL = URL(fileURLWithPath: "/bin/bash")
+                  p.arguments = ["-c", cmd]
+              }
+              var env = ProcessInfo.processInfo.environment
+              env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + (env["PATH"] ?? "")
+              p.environment = env
+              let pipe = Pipe()
+              p.standardOutput = pipe
+              p.standardError = pipe
+              do { try p.run() } catch { return (-1, "\(error)") }
+              let data = pipe.fileHandleForReading.readDataToEndOfFile()
+              p.waitUntilExit()
+              return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+          }
+
+          func q(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+
+          // MARK: - Wi-Fi (rtw88ctl)
+
+          struct WiFiNet: Identifiable, Hashable {
+              let id: String
+              let ssid: String
+              let rssi: Int
+          }
+
+          final class WiFiModel: ObservableObject {
+              @Published var nets: [WiFiNet] = []
+              @Published var status: [String: String] = [:]
+              @Published var busy = false
+              @Published var message = ""
+              let tool = "rtw88ctl"
+
+              var connectedSSID: String? {
+                  guard let s = status["SSID"], s != "(unknown)", !s.isEmpty else { return nil }
+                  return (status["State"] ?? "").contains("connected") ? s : nil
+              }
+              var powerOn: Bool { (status["Power"] ?? "on").contains("on") }
+              var rssi: Int? { Int((status["RSSI"] ?? "").components(separatedBy: " ").first ?? "") }
+
+              func run(_ args: String, then: ((String) -> Void)? = nil) {
+                  busy = true
+                  DispatchQueue.global().async {
+                      var r = shell("\(self.tool) \(args)")
+                      if r.code != 0 && (r.out.contains("ermission") || r.out.contains("privilege") || r.out.contains("0xe00002c1")) {
+                          r = shell("/usr/local/bin/\(self.tool) \(args)", admin: true)
+                      }
+                      DispatchQueue.main.async {
+                          self.busy = false
+                          if r.code == -1 || r.out.contains("command not found") {
+                              self.message = "rtw88ctl bulunamadi (/usr/local/bin)"
+                          }
+                          then?(r.out)
+                      }
+                  }
+              }
+
+              func refreshStatus() {
+                  run("status") { out in
+                      var d: [String: String] = [:]
+                      for line in out.split(separator: "\n") {
+                          guard let i = line.firstIndex(of: ":") else { continue }
+                          let k = line[..<i].trimmingCharacters(in: .whitespaces)
+                          let v = line[line.index(after: i)...].trimmingCharacters(in: .whitespaces)
+                          d[k] = v
+                      }
+                      self.status = d
+                  }
+              }
+
+              func scan() {
+                  message = "Taraniyor..."
+                  run("scan -w 6") { out in
+                      self.nets = WiFiModel.parse(out)
+                      self.message = self.nets.isEmpty ? "Ag bulunamadi" : ""
+                  }
+              }
+
+              // "SSID  BSSID  RSSI" tablosu: BSSID'yi bul, oncesi SSID, sonrasindaki ilk sayi RSSI
+              static func parse(_ out: String) -> [WiFiNet] {
+                  var best: [String: WiFiNet] = [:]
+                  let mac = try! NSRegularExpression(pattern: "([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}")
+                  for raw in out.split(separator: "\n") {
+                      let line = String(raw)
+                      let ns = line as NSString
+                      guard let m = mac.firstMatch(in: line, range: NSRange(location: 0, length: ns.length)) else { continue }
+                      let ssid = ns.substring(to: m.range.location).trimmingCharacters(in: .whitespaces)
+                      let rest = ns.substring(from: m.range.location + m.range.length)
+                      let rssi = rest.split(whereSeparator: { $0 == " " || $0 == "\t" }).compactMap { Int($0) }.first ?? -100
+                      guard !ssid.isEmpty, ssid != "SSID" else { continue }
+                      if let old = best[ssid], old.rssi >= rssi { continue }
+                      best[ssid] = WiFiNet(id: ssid, ssid: ssid, rssi: rssi)
+                  }
+                  return best.values.sorted { $0.rssi > $1.rssi }
+              }
+
+              func connect(_ ssid: String, _ pass: String) {
+                  message = "\(ssid) baglaniyor..."
+                  let cmd = pass.isEmpty ? "connect \(q(ssid))" : "connect \(q(ssid)) \(q(pass))"
+                  run(cmd) { out in
+                      self.message = out.contains("Connected") ? "Baglandi" : "Baglanamadi"
+                      if out.contains("Connected") { Keychain.save(ssid: ssid, pass: pass) }
+                      self.refreshStatus()
+                  }
+              }
+              func disconnect() { run("disconnect") { _ in self.refreshStatus() } }
+              func power(_ on: Bool) { run("power \(on ? "on" : "off")") { _ in self.refreshStatus() } }
+
+              // Acilista bilinen aga otomatik baglan
+              func autoJoin() {
+                  run("status") { out in
+                      if out.contains("connected") && !out.contains("disconnected") { self.refreshStatus(); return }
+                      self.run("scan -w 6") { list in
+                          self.nets = WiFiModel.parse(list)
+                          for n in self.nets { if let p = Keychain.load(ssid: n.ssid) { self.connect(n.ssid, p); return } }
+                          self.refreshStatus()
+                      }
+                  }
+              }
+          }
+
+          // Sifreler kullanicinin anahtar zincirinde
+          enum Keychain {
+              static let service = "Vostrointosh.WiFi"
+              static func save(ssid: String, pass: String) {
+                  let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                             kSecAttrService as String: service, kSecAttrAccount as String: ssid]
+                  SecItemDelete(base as CFDictionary)
+                  var add = base; add[kSecValueData as String] = pass.data(using: .utf8)!
+                  SecItemAdd(add as CFDictionary, nil)
+              }
+              static func load(ssid: String) -> String? {
+                  let qd: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                                           kSecAttrAccount as String: ssid, kSecReturnData as String: true,
+                                           kSecMatchLimit as String: kSecMatchLimitOne]
+                  var item: CFTypeRef?
+                  guard SecItemCopyMatching(qd as CFDictionary, &item) == errSecSuccess, let d = item as? Data else { return nil }
+                  return String(data: d, encoding: .utf8)
+              }
+          }
+
+          // MARK: - Ses cikisi (CoreAudio)
+
+          struct AudioDev: Identifiable, Hashable { let id: AudioDeviceID; let name: String }
+
+          final class AudioModel: ObservableObject {
+              @Published var outputs: [AudioDev] = []
+              @Published var current: AudioDeviceID = 0
+
+              func refresh() {
+                  var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
+                                                        mScope: kAudioObjectPropertyScopeGlobal,
+                                                        mElement: kAudioObjectPropertyElementMain)
+                  var size: UInt32 = 0
+                  guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size) == noErr else { return }
+                  var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
+                  guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids) == noErr else { return }
+                  outputs = ids.filter { AudioModel.hasOutput($0) }.map { AudioDev(id: $0, name: AudioModel.name($0)) }
+                  current = AudioModel.defaultOutput()
+              }
+
+              static func hasOutput(_ id: AudioDeviceID) -> Bool {
+                  var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration,
+                                                        mScope: kAudioDevicePropertyScopeOutput,
+                                                        mElement: kAudioObjectPropertyElementMain)
+                  var size: UInt32 = 0
+                  guard AudioObjectGetPropertyDataSize(id, &addr, 0, nil, &size) == noErr, size > 0 else { return false }
+                  let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+                  defer { raw.deallocate() }
+                  guard AudioObjectGetPropertyData(id, &addr, 0, nil, &size, raw) == noErr else { return false }
+                  let list = UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self))
+                  return list.reduce(0) { $0 + Int($1.mNumberChannels) } > 0
+              }
+
+              static func name(_ id: AudioDeviceID) -> String {
+                  var addr = AudioObjectPropertyAddress(mSelector: kAudioObjectPropertyName,
+                                                        mScope: kAudioObjectPropertyScopeGlobal,
+                                                        mElement: kAudioObjectPropertyElementMain)
+                  var name: Unmanaged<CFString>?
+                  var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+                  guard AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &name) == noErr, let n = name else { return "Cihaz \(id)" }
+                  return n.takeRetainedValue() as String
+              }
+
+              static func defaultOutput() -> AudioDeviceID {
+                  var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                                                        mScope: kAudioObjectPropertyScopeGlobal,
+                                                        mElement: kAudioObjectPropertyElementMain)
+                  var id: AudioDeviceID = 0
+                  var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+                  AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &id)
+                  return id
+              }
+
+              func select(_ id: AudioDeviceID) {
+                  for sel in [kAudioHardwarePropertyDefaultOutputDevice, kAudioHardwarePropertyDefaultSystemOutputDevice] {
+                      var addr = AudioObjectPropertyAddress(mSelector: sel, mScope: kAudioObjectPropertyScopeGlobal,
+                                                            mElement: kAudioObjectPropertyElementMain)
+                      var dev = id
+                      AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil,
+                                                 UInt32(MemoryLayout<AudioDeviceID>.size), &dev)
+                  }
+                  refresh()
+              }
+          }
+
+          // MARK: - Sistem durumu (ekran / bluetooth / usb)
+
+          struct StatusLine: Identifiable { let id: String; let value: String }
+
+          final class SystemModel: ObservableObject {
+              @Published var lines: [StatusLine] = []
+              @Published var logMsg = ""
+
+              func refresh() {
+                  DispatchQueue.global().async {
+                      var r: [StatusLine] = []
+                      let combo = shell("ioreg -lw0 -d 1 | grep -E '\"VostroComboLast\"' | sed 's/.*= //'").out
+                          .trimmingCharacters(in: .whitespacesAndNewlines)
+                      r.append(StatusLine(id: "Laptop ekrani", value: combo.contains("result=0\"") ? "ACIK" : (combo.isEmpty ? "bilgi yok" : "egitim basarisiz")))
+                      let bt = shell("system_profiler SPBluetoothDataType 2>/dev/null | grep -E 'State:|Address:' | head -2").out
+                      r.append(StatusLine(id: "Bluetooth", value: bt.contains("On") ? "acik" : (bt.contains("NULL") ? "kart yanit vermiyor" : "kapali")))
+                      let usbAudio = shell("system_profiler SPAudioDataType 2>/dev/null | grep -c 'Transport: USB'").out
+                          .trimmingCharacters(in: .whitespacesAndNewlines)
+                      r.append(StatusLine(id: "USB ses cihazi", value: (Int(usbAudio) ?? 0) > 0 ? "\(usbAudio) adet" : "yok"))
+                      let d = shell("cat /Volumes/1401/vostro_durum/bitti.txt /Volumes/1401/vostro_durum/siradaki.txt 2>/dev/null | head -1").out
+                          .trimmingCharacters(in: .whitespacesAndNewlines)
+                      if !d.isEmpty { r.append(StatusLine(id: "Ekran denemesi", value: d)) }
+                      DispatchQueue.main.async { self.lines = r }
+                  }
+              }
+
+              func takeLog() {
+                  logMsg = "Log aliniyor..."
+                  DispatchQueue.global().async {
+                      let r = shell("bash /usr/local/vostro/vostro_log.sh", admin: true)
+                      DispatchQueue.main.async {
+                          self.logMsg = r.code == 0 ? "Log 1401/vostro_combo.txt'ye yazildi" : "Log alinamadi"
+                          if r.code == 0 { NSWorkspace.shared.selectFile("/Volumes/1401/vostro_combo.txt", inFileViewerRootedAtPath: "") }
+                      }
+                  }
+              }
+
+              // Ventura: Kontrol Merkezi'ndeki yerel Wi-Fi simgesini gizle/goster
+              func nativeWiFiIcon(show: Bool) {
+                  shell("defaults write com.apple.controlcenter 'NSStatusItem Visible WiFi' -bool \(show ? "true" : "false"); killall ControlCenter")
+              }
+          }
+
+          // MARK: - Arayuz
+
+          struct WiFiRow: View {
+              let net: WiFiNet
+              let connected: Bool
+              let onTap: () -> Void
+              var bars: String { net.rssi > -55 ? "wifi" : (net.rssi > -70 ? "wifi" : "wifi.exclamationmark") }
+              var body: some View {
+                  Button(action: onTap) {
+                      HStack {
+                          Image(systemName: bars).frame(width: 18)
+                          Text(net.ssid).lineLimit(1)
+                          Spacer()
+                          if connected { Image(systemName: "checkmark").foregroundColor(.accentColor) }
+                          Text("\(net.rssi)").font(.caption).foregroundColor(.secondary)
+                      }.contentShape(Rectangle())
+                  }.buttonStyle(.plain).padding(.vertical, 2)
+              }
+          }
+
+          struct MenuView: View {
+              @ObservedObject var wifi: WiFiModel
+              @ObservedObject var audio: AudioModel
+              @ObservedObject var sys: SystemModel
+              @State private var pickSSID: String?
+              @State private var pass = ""
+
+              var body: some View {
+                  VStack(alignment: .leading, spacing: 8) {
+                      HStack {
+                          Text("Wi-Fi").font(.headline)
+                          Spacer()
+                          Toggle("", isOn: Binding(get: { wifi.powerOn }, set: { wifi.power($0) }))
+                              .toggleStyle(.switch).labelsHidden()
+                      }
+                      if let s = wifi.connectedSSID {
+                          HStack {
+                              Image(systemName: "wifi").foregroundColor(.accentColor)
+                              Text(s).bold()
+                              Spacer()
+                              Button("Kes") { wifi.disconnect() }
+                          }
+                      }
+                      HStack {
+                          Text("Diger aglar").font(.caption).foregroundColor(.secondary)
+                          Spacer()
+                          if wifi.busy { ProgressView().controlSize(.small) }
+                          Button { wifi.scan() } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless)
+                      }
+                      ScrollView {
+                          VStack(alignment: .leading, spacing: 0) {
+                              ForEach(wifi.nets) { n in
+                                  WiFiRow(net: n, connected: n.ssid == wifi.connectedSSID) {
+                                      if let saved = Keychain.load(ssid: n.ssid) { wifi.connect(n.ssid, saved) }
+                                      else { pickSSID = n.ssid; pass = "" }
+                                  }
+                              }
+                          }
+                      }.frame(maxHeight: 180)
+                      if let s = pickSSID {
+                          VStack(alignment: .leading) {
+                              Text("\"\(s)\" sifresi").font(.caption)
+                              SecureField("Sifre (acik ag icin bos)", text: $pass)
+                              HStack {
+                                  Button("Vazgec") { pickSSID = nil }
+                                  Spacer()
+                                  Button("Baglan") { wifi.connect(s, pass); pickSSID = nil }.keyboardShortcut(.defaultAction)
+                              }
+                          }
+                      }
+                      if !wifi.message.isEmpty { Text(wifi.message).font(.caption).foregroundColor(.secondary) }
+
+                      Divider()
+                      Text("Ses cikisi").font(.headline)
+                      if audio.outputs.isEmpty {
+                          Text("Ses cihazi yok. USB ses karti ya da Bluetooth hoparlor tak.").font(.caption).foregroundColor(.secondary)
+                      }
+                      ForEach(audio.outputs) { d in
+                          Button { audio.select(d.id) } label: {
+                              HStack {
+                                  Image(systemName: d.id == audio.current ? "speaker.wave.2.fill" : "speaker")
+                                  Text(d.name)
+                                  Spacer()
+                                  if d.id == audio.current { Image(systemName: "checkmark") }
+                              }.contentShape(Rectangle())
+                          }.buttonStyle(.plain)
+                      }
+
+                      Divider()
+                      Text("Vostro 3520 durumu").font(.headline)
+                      ForEach(sys.lines) { l in
+                          HStack { Text(l.id).foregroundColor(.secondary); Spacer(); Text(l.value).lineLimit(2).multilineTextAlignment(.trailing) }
+                              .font(.caption)
+                      }
+                      HStack {
+                          Button("Log al") { sys.takeLog() }
+                          Button("Bluetooth ayarlari") {
+                              NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!)
+                          }
+                      }
+                      if !sys.logMsg.isEmpty { Text(sys.logMsg).font(.caption).foregroundColor(.secondary) }
+                      Menu("Diger") {
+                          Button("Yerel Wi-Fi simgesini gizle") { sys.nativeWiFiIcon(show: false) }
+                          Button("Yerel Wi-Fi simgesini goster") { sys.nativeWiFiIcon(show: true) }
+                          Button("Acilista calistir") {
+                              shell("osascript -e 'tell application \"System Events\" to make login item at end with properties {path:\"\(Bundle.main.bundlePath)\", hidden:true}'")
+                          }
+                          Divider()
+                          Button("Cikis") { NSApp.terminate(nil) }
+                      }
+                  }
+                  .padding(12)
+                  .frame(width: 300)
+                  .onAppear { wifi.refreshStatus(); audio.refresh(); sys.refresh(); if wifi.nets.isEmpty { wifi.scan() } }
+              }
+          }
+
+          @main
+          struct VostrointoshApp: App {
+              @StateObject var wifi: WiFiModel
+              @StateObject var audio = AudioModel()
+              @StateObject var sys = SystemModel()
+
+              init() {
+                  let w = WiFiModel()
+                  _wifi = StateObject(wrappedValue: w)
+                  DispatchQueue.main.asyncAfter(deadline: .now() + 3) { w.autoJoin() }
+              }
+
+              var icon: String {
+                  if !wifi.powerOn { return "wifi.slash" }
+                  return wifi.connectedSSID == nil ? "wifi.exclamationmark" : "wifi"
+              }
+
+              var body: some Scene {
+                  MenuBarExtra {
+                      MenuView(wifi: wifi, audio: audio, sys: sys)
+                  } label: {
+                      Image(systemName: icon)
+                  }
+                  .menuBarExtraStyle(.window)
+              }
+          }
+          SWEOF
+          swiftc -parse-as-library -O -target x86_64-apple-macos13.0 src/Vostrointosh.swift -o Vostrointosh \
+            -framework SwiftUI -framework AppKit -framework CoreAudio -framework Security
+          A=out/Vostrointosh.app/Contents; mkdir -p $A/MacOS && cp Vostrointosh $A/MacOS/
+          cat > $A/Info.plist <<'PEOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+           <key>CFBundleExecutable</key><string>Vostrointosh</string>
+           <key>CFBundleIdentifier</key><string>com.vostro.vostrointosh</string>
+           <key>CFBundleName</key><string>Vostrointosh</string>
+           <key>CFBundlePackageType</key><string>APPL</string>
+           <key>CFBundleShortVersionString</key><string>1.0</string>
+           <key>CFBundleVersion</key><string>1</string>
+           <key>LSMinimumSystemVersion</key><string>13.0</string>
+           <key>LSUIElement</key><true/>
+          </dict></plist>
+          PEOF
+          codesign -f -s - out/Vostrointosh.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k-app
+          path: out/
+
   paket:
-    needs: [wex, bt]
+    needs: [wex, bt, app]
     runs-on: macos-15
     steps:
       - uses: actions/download-artifact@v4
@@ -446,97 +883,109 @@ jobs:
         with:
           name: k-bt
           path: kx
+      - uses: actions/download-artifact@v4
+        with:
+          name: k-app
+          path: kx
       - name: Paketle
         run: |
           base64 -D > p.tgz <<'B64'
-          H4sIAONBA2sC/+1c+VfbyLLOz/4rKgoZ7CRavGCzmRmDTfBhMQebJHMJwxG2AD3Lkp8kQyBk/vb3
-          VWuxvADJfZncOxN1chK5l+rq7qpS9dfVUlRF/e1Q/7Rj6D3DffaXJC1ID/2vacXi+Jnz81ohn39G
-          n579gDTyfN1F989+zlSo0MA3B0Y1X1lZKlaWlpYrSrG0UiwXM8/S9M9P147nu4481PuGr57rnqUr
-          3tVfoP+QrAf0P68VS4Vn+aWippVLWqUEW5AvaOWlZ6Sl+v+XpxfP1XPT5pW/yryg6vdIoEPvWu3O
-          UYuKSwWNZNppHFG78XuTWp3Wfq3T3KXd46PaEWW75oVPvtm39By3ype0PB23N8nX+6ZlkmMNdMtU
-          vhtj3R5JC9me6dr6wMCjJuUkur8n45PpUz4DNhtVaeHwfV3KHGVz9JmGrmn7FyR9xCvqpJgfvPTE
-          kzb4aEton5fW6MsavZ1TtzC3bqa1VZXUd441GhieysNVG9tNtbWFwl103dpSd41PvidljO6VQ9K+
-          3iXPvHANm0zPN2yja/QVKeONeg7J1wnWT0hG19y+69gX5qUytNBAolOu85mOSNqpdWqr4xk+H1kj
-          zILeMymLZjmFOpjzIflG39Vd6qEvBUy5cAtIdkkektSwfcNVFM4OeuUBddpVnlLdN+j1y99fDl72
-          zl7uvNx/2c5JmXAQ1SrlFfrd6Bl9rKOUyRLWYWIS6Jdf6A6dy//r3mIUO639hlo3vL7vDHl+zm65
-          7dlCp62glkTIohy3eUsSUWc0EDmikmXYPXOV9nVPh2KP5rROcFVQiGfbMlzB14XjUp9Mm95fYTjX
-          hvvBoCNDtzAlm9bI8B3Hv9o23cGN7hpr1HMyRJh2FikWHHWhr/RBLTnnRGEmCfvaM+jW6T/H/GGR
-          fNMeGTyDMZXdiITiuOZlSKeLWTlKFkpzahY21J5xrdojywI5d4AVu5hsg8mKKE0yy7WkeC4X+tQf
-          uSOrN6IsSP+PaUP/VinZG9a159hGBq8N0770BIHxhIl66haGZ9i+p0J+W+1EMbSNLl2DV5qk4NUz
-          tKxx//XW26PjvdpBvbmaXAWWSZtudbYG5IHBgSL0Vkzx8e+1o8nqyYqQ5EvTeo7VNe0pqWPhoI9Z
-          koU1WFTOXi2S7MQ/6+2ztu+4xiJ9zGGBDMuAjCdnOiFI5wrFIkIH745q+5Qd8NgpX1BKr+nScCGb
-          MGmXZk7I2tb22+qsusKUHFelylapWM7nNbm2WajJpc3NTbm2vKzJ241SfmVlaWtle7kgZbCc0gLI
-          SMF/yrk/FnQpM7RGvmlBDoyhpXdh6wRTSq3XUxbeHivnEbONT9BpLHLdsS8tY1s3LaMnYbS6r5NU
-          q4HVsJevpti0A4osA65jQbma9oWToDkvJfqJtfBRHumJ/kL9jJiGULp614+YrovFZL4l+jSw8mLZ
-          o+lMSOh6IOQbC/11NXwUcheRNW3PcOdSlYPqoNnHD304hF2KRijUx7yIqVh4b0Sdj8VrjfwrmH2h
-          FoFE6bZ+BV/F0l2TQkvHptjyjEARAlGic+eOFfhNYBBZ9EzqO/bo1nHZ8gznyUvY/RpdmMHLxb52
-          9cHjS1B9qWkT+jCv4fzV4abf9He2HzZyF6Tumed4Xd2qh65xAR2zu9DtrjNQMOOWocQ6GejXWtjq
-          z7nNNm93YJDmtn4VtJ/gQizMWOkxzK55ZfFk44VtYpV4eRI2oqhQw+ubVNZ27kKDpt/yUrI5mDek
-          uulB0269sTU9Mjxn5DKvLRg61+zhKaz1DtLguM26XFyuaFHmoev0Rl0fuUsXsYn1jYF5FwhPgruS
-          Qi3fGejwxchyLuk1OdHPgFd2CGA4E+wO+nCk2DFQR56rWk5Xt9TApAflQtLEyybIPQNd7C2kqVye
-          hDnZUJLLkcifIa+G9K8GTo+wr5hT4xVaBrV8w5hTrndhiz1USigcra8vNlrtxUzSJeZ/5rSfGBHJ
-          ckDvidrRkDLo5ekhxCzOFY49fWR3r+q6MXDsQOKDZgqzFAhrgiQPZ4LlxNw8SVG4LiHNObO1/iss
-          KEEePdOxq1Je0SSCQjk9mL+qdNzZlpelXzcy68/rra3O74cNCigdHm/uNbdIklW1xtqmqvVOnQ73
-          mu0OvEVNVRsHEIkr3x+uqurNzU2ok+CLK3rQXGcI23u7B2IyGig9vyehm4D6BDsb6z2z629kaL1v
-          3G7s6eeGta7yY2TepwcbG/uwCfq6hFWruZfwHaCIYWvddfUxkVhm4tZxycNrO66rBtTCHo9Gds3f
-          c/Re2JXvjgwVo1PFSNZVMcqNpCA5Nza5sESrN1eGYX3bsq5RQhrLpdK3tc7Uq5NuVSTu7H6tjb3R
-          Ol4vsc0Ifgrzo9EG/1ThnxmfpECHHjARGv7AX0yKYWTWmtaMpbrS70x3lfbgaH+CZO2xK2i4bKJD
-          y8c2fLPZ6TQVapsD7ITOTevS9AKz3Knt1/YbB7RbO6x13lBeIw8+Cb933xB2Zdmx6Te7pp1Toi0b
-          8X4XO4pgjX0w9Geeen3yHNvVhW3lSVpkL/UONVzIKrWbR7V6bbc58V6IDbAYB94npjvRyZ4+xP4o
-          aGKK7gb6nadHO7i+PtR9mTldFgTpWncnuWwEnTGfdlcf98cLh3l7eFEh6r5vKj72DwlybfgYXTgn
-          j7YMFufsFTdGow3asvRRz1jU6dLB+rvTs+gZt2bgwugYXn9VPLMVGOD9KmWS29NdHjDqiPWgeLOa
-          wpiPJuW/Av8vzeL/hRT//yH4//IU/l9eUSoVPJXLqeb8nPh/aF3/Q/h/oQD9L2rlcor/p/h/iv+n
-          +H+K/6f4f4r/p/h/iv+n+H+K/6f4f4r/p/h/iv+n+H+K/6f4f4r/p/h/iv99P/y/vFQqLynlcgFX
-          ACqp5vxs+H/SuP6w+H8tn1/Kh/g/noqM/xcqhTT+/z+A/78T0hCglaYdv3nZjYrgQOoHkOkb4VXg
-          fR/sd9+M/QfTE84HA/dPAO6788HwCAOfhbn/fYh2FlyF5/gEUjrdZrpe4KoAM43mxkCXdm8UQjyh
-          J4vjhBlHNoQIghFawsnu+hagG0ziyCfvFmD/4Bv3Zk9BJN+wEwjnZXZjH4z4bSgVwBAY17cBRMA1
-          5rND/8Ezg/Rlkvp/qf/3N4j/qFSUpRVtebmSXgD96fy/KaDyR/l/5UpxHP8h/L/iUklL/b8f7/8l
-          gSvKMlgVvOb7jGMJBCtHcAdMjz1CI8aPeuYtgCeBG70JkaggC/X0HuIKQkiL0R9XyTDIW81KIZoH
-          vyrC9a7O3eAX/s3PlPpDrzguCCsXJqpZzk1clnsUmMyEfmE9PGcXDqYWxVHUExBX4CqG5SZHO3R1
-          P4FYJh0vQUmAmjlxQju3f7he544AwJhIiIgtfDa/BN0l/TicEpo4gr7EIeGNxgznE8eTixIONeEL
-          93pmVYPX5Y0sv6pJi8HJIVzfwFtr7B7VDqi21dyrA+jc4tULMUYc7H/mtThZME+/EGUDVmjBhJO+
-          MTULa9EM4ITQrC5ks+brfC7HDJ6gpolDzkt28D+/EAR/O/2CeZtiZHPkj+x418CdQbLeJMSIpUah
-          CYiw53i3Op94YjMyBRUqs0yiq8ePYEIHPPK/k0ByYeOXfHKQoXNvSnPg6SfpJ+d1qo+QcD2a6wim
-          TjSZdapDHiJ1Cgab+n+p/f/e+N9ysVJUEP67ki+UUv/vJ/X/gjPiH4b/VSp5LfT/CoUyAn/h/4nv
-          /6T+3983/jcAEqfjfyFZiEthX7LrmkOfa4av7MmIiomEU0JPHM+K1g+2keUYgRRtrpK+bFkc3wZn
-          sH32OzgUz+ZX7FNExTlqzIiTCJKxEGaI00lRgQlswU02V5/y+SjL4beIA4V7HIWpiuDnHbN7juPg
-          wFOuN97CG2ge7Tf+RdnEyDy8pRF8J4YQegcDPfCSPPaREL3Jx7zfbSlFQEb1G8JOMu3G3nb10diT
-          yGn8nF+V4SZWEQQSDzDpNT4YZQSS7JKPo4x4v7DAHUvj/Di0JiyJCHLQC0BZHpc0Gc/SaG3/w6JZ
-          MOHfOZZFzOVMbhQA9f8OZ9mOVmkmoCVasplYlagg3ma0plQ0imhWJne3SYvwhMqKSA29q3PoPSX3
-          QbNyLIzBjBA/iPDHglhIBn4m0Pu4wliKHxol98xbcWVirzbNYDD+cFPrWQa2kmUtk0EUP5px5awJ
-          8H6EHaBsG9hRi3ooZZ6kYMTydPS+qIP8m+n8MIa1ddypPj7FGRHFyvXALYf/r8rqMWJrPbV9haOc
-          3pf4OsB0S8G1PHXMBEJ80CQ29qLzJK0ZEiLqNfM53Ji9mErRVZa91lvEx4ubDjlpXBevJl5Jlsub
-          M1bUNRoN2aFei0JhseKy7iJSPrmx5/Zh/JOgEh6qUTZxsBWfuB0fN+tUXtFKy1v1ury5XS7KxUal
-          JG8WtwtyqZZfWWps4RbVdgWM9QciqNiD/lhQOERKyzILvOzY1u0kVBECCdcUh7wirwvhlLt5uaBp
-          M0wKJGEm0h6Sd2v6vEeHfDwAVjQAVgQuwRbP+iIKPLC26Kl/nND96StVFVkOgqnldw/1O9RtGIL6
-          4VadAHwg1BlXVwKi9cPc1/RdPzzR5JXTf6/3xKjNLi4o4WWbZV7U2vEH7OEHT3CQWNj7940P9wcr
-          lfvO2737MFQ3X7yv1fcO7j8YuZOa/C9dvmNOX0FpFxMLFQ3kgRFEa1fWHl48wHl9ErgRh6erBF7g
-          VPimGyzgQpt60NLLBO9SoAD3e82D3bPOUa15P+8+xzVJ25san/3ajo9Xpn4ubhLcww3j08D80oMc
-          CfwHveO8VxjFs6HrXJisDO3DKAa6jrsDnduh8agObe4dNzqtVmeHspNy+VXCsdl5RC7mzkt48Byd
-          N9/zCXTHcazxqJe1OWOKD6rnDSpuWpidrziovsdGH6fMjM+yorOK6/AT2NTg2fNvocpQ6iFfeZDl
-          IYye2eUbWotgA+HjHpxDksbkJMKNG1xYQYl+aQiWUAER5jhtbx0Rltr294NC2moddGrNg/ZJ95Sk
-          C1wEkB6vIqg8UacbXw54oiLk1vaGWI8n6g2dG9DKLc6dWXxcMmnnyrMTzQ46gvn1O3HVInvlDAFZ
-          Yi5UiNTAYH+BNjtjoRpSs8VNhHQlBOuPj69l5z4QJfEoca0wKJ8OQEq6l8xeELovHsMyPJ/XjWuz
-          awDy9DwpaBjUC9o9YQDyDwyKpw62yjV97BbERoTlddP5hBF92NlqigpzNAYOeJeEY4smoiKUqDD3
-          bQK9EGP9KDGtjzBgeDz2znGJAbcXcZ/qo4QMjjHC4n2UpCcHklSm6TG1G+3xQs2zH7VRz3S+ynjs
-          Itj3qDaPxpZY868i8r4pbzelzNTux/VvlpfZ+YPb6Y88gQJP6/kcv6PdOpAyXwTyy/5MEjzeg+IL
-          p5TvOorSzN8b/02///xf8/1n/v7D8lI5Pf7/efHf8BTrR+G/RcScTH//oVgupfjvPwb/tSauqgCo
-          xJluCHRmeSdVSu6uxF1p083NYrLR6Sqf+Sew4RtGnKoFMgbDq42q9nC7PP5whMBEu3zYLo87jyiU
-          RTb2d+eW8zAljjXgcISAUuewXcJtWyBfBj8XCVfOYVNxku3hHPdxKq5xHfKDQEkPMwUaWfGvy/Ph
-          6VYuvtH0MKXoPDugFB6xMzRtMXoaX+Wnnn7NS+BNfm2D78En76GPMYtFxpR7ozvDFuCEg4uy4bVi
-          DgoWODPtAnK2VoPpxBzybGL/RxfsleHW63eTKnFlfm648MQd+iiEQ1ynDj/FEHhNwRcwuIDh9zfB
-          +MMvjQzMXyc+a4HI5PH99q+5kK/EcyZlNmscJTJz93xhVyJXvwl5CwKhI97GKJHTD7/LMcFPQDK8
-          G7WwWaPIceaNhqeG8iDWoCpAjteqeglMKirhVZkqkIMSyPxUDgRvKsd2sA1xpzIRYzOVg8ibyV6h
-          IlOd0muVgsc/SFVF1gJc/pw0BaY+xwY1FOokmtp+X42qrFFjn38UVmXtC+OiJ9y8/R47jj/pD/Ra
-          PF1gXFJaaOxP5J1OCMUu/HhoxGB1rl6tB1KNhhu0LiRbPJ5g0k55AUIOkyvFEecIj2m/f93Yz+HD
-          EdiKFyflUNB8PaUn4bdupkiJZcdqJ5cXY0wuKg8PNTkyXufIeEzJb6tFnh8R/o7PAugeY6KYR5NP
-          u25yMdWxBEhrHLZ9PVOEPC4K1n+mNMjmCpCFmVKOwUIRhGKmiAO2UATxOMkXiqe5qXGy2Cx81l/g
-          /y9cz/D0LoYiguoB1U5/+SL8jMEDH6GZ+W4Fq+H48wybtejjBywsj3+SYRzzH6vrKgkKccFU4A7x
-          Ti0+vEte/AyPE1IHNE1pSlOa0pSmNKUpTWlKU5rSlKY0/eXp/wA2HAupAHgAAA==
+          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
           B64
           tar xzf p.tgz
-          cp -R kx/WhateverXe.kext kx/RealtekBluetoothFirmware.kext vostro-paket/
-          chmod 755 vostro-paket/*.sh vostro-paket/*.command
+          cp -R kx/WhateverXe.kext kx/RealtekBluetoothFirmware.kext kx/Vostrointosh.app vostro-paket/
+          chmod 755 vostro-paket/*.sh vostro-paket/*.command vostro-paket/Vostrointosh.app/Contents/MacOS/Vostrointosh
           xattr -cr vostro-paket || true
           ditto -c -k --keepParent vostro-paket vostro-paket.zip
           unzip -l vostro-paket.zip
