@@ -1,0 +1,116 @@
+# Vostro 3520 - WhateverXe 0.8.3 yamali derleme (dahili ekran link training)
+# Kullanim: repo > .github/workflows/build-wex-vostro.yml > Actions > Run workflow
+# Cikti: wex-vostro.zip  (lowswing/WhateverXe.kext ve tani/WhateverXe.kext)
+name: Build WEX Vostro
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: b00t0x/WhateverXe
+          ref: "0.8.3"
+          path: wex
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: acidanthera/MacKernelSDK
+          ref: 05094e5e88cec7caedbfb35e8449ed0db94bf95b
+          path: wex/MacKernelSDK
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: acidanthera/Lilu
+          ref: "1.7.2"
+          path: lilu
+          persist-credentials: false
+      - name: Lilu gelistirme dosyalari
+        run: |
+          mkdir -p wex/Lilu.kext/Contents/Resources
+          ln -s "$GITHUB_WORKSPACE/lilu/Lilu/Headers" wex/Lilu.kext/Contents/Resources/Headers
+          ln -s "$GITHUB_WORKSPACE/lilu/Lilu/Library" wex/Lilu.kext/Contents/Resources/Library
+      - name: Yama scripti
+        run: |
+          cat > wex_patch.py <<'PYEOF'
+          #!/usr/bin/env python3
+          """Vostro 3520 WhateverXe patch.
+            python3 wex_patch.py <WhateverXe/kern_xe.cpp> tani      -> sadece log ekler (davranis ayni)
+            python3 wex_patch.py <WhateverXe/kern_xe.cpp> lowswing  -> log + dahili ekran (DDI-A) icin low-swing tablo
+          """
+          import sys
+          path, mode = sys.argv[1], sys.argv[2]
+          s = open(path).read()
+
+          old_donor = """ if(!s->adlnOutputWiring.links() || display13HDMIPort(port))
+            return FunctionCast(wrapDisplay13SignalLevels,s->orgDisplay13SignalLevels)(port,swing,emphasis,overrideConfig);
+           if(!c.lock)return kIOReturnNotReady;
+           IOLockLock(c.lock);auto p=display13SSTPort(port);uint32_t result=kIOReturnNotReady;"""
+          new_donor = """ if(!s->adlnOutputWiring.links() || display13HDMIPort(port)) {
+            IOLog("VOSTRO combo donor-path links=%d hdmi=%d swing=%u emph=%u\\n",(int)s->adlnOutputWiring.links(),(int)display13HDMIPort(port),swing,emphasis);
+            return FunctionCast(wrapDisplay13SignalLevels,s->orgDisplay13SignalLevels)(port,swing,emphasis,overrideConfig);
+           }
+           if(!c.lock)return kIOReturnNotReady;
+           IOLockLock(c.lock);auto p=display13SSTPort(port);uint32_t result=kIOReturnNotReady;
+           if(!p || overrideConfig)IOLog("VOSTRO combo no-sst p=%d override=%d\\n",(int)(p!=nullptr),(int)(overrideConfig!=nullptr));"""
+          assert s.count(old_donor) == 1, "donor block not found"
+          s = s.replace(old_donor, new_donor)
+
+          old_if = """  if(selected.selectADLP(ddi,Display13FBMemory::field<uint32_t>(p,0x124),Display13FBMemory::field<uint32_t>(p,0x128),swing,emphasis,(s->adlnOutputWiring.panel&(1U<<ddi))!=0,s->firmwarePorts.panel.lowSwing) &&
+               Display13FBMemory::field<uint32_t>(p,0x620)==selected.base+0x804 &&
+               Display13FBMemory::field<uint32_t>(p,0x5C8)==selected.base+0x28 &&
+               Display13FBMemory::field<uint32_t>(c.access,0x60)>=selected.base+0xBA0 && c.bridge.ddiHeld(io,ddi)) {"""
+          panel_expr = "(s->adlnOutputWiring.panel&(1U<<ddi))!=0"
+          low_expr = "s->firmwarePorts.panel.lowSwing"
+          if mode == "lowswing":
+              panel_expr = "(ddi==0 || (s->adlnOutputWiring.panel&(1U<<ddi))!=0)"
+              low_expr = "true"
+          new_if = f"""  const uint32_t vLanes=Display13FBMemory::field<uint32_t>(p,0x124),vRate=Display13FBMemory::field<uint32_t>(p,0x128);
+            const bool vPanel={panel_expr},vLow={low_expr};
+            const bool vSel=selected.selectADLP(ddi,vLanes,vRate,swing,emphasis,vPanel,vLow);
+            const bool vF1=vSel && Display13FBMemory::field<uint32_t>(p,0x620)==selected.base+0x804;
+            const bool vF2=vF1 && Display13FBMemory::field<uint32_t>(p,0x5C8)==selected.base+0x28;
+            const bool vF3=vF2 && Display13FBMemory::field<uint32_t>(c.access,0x60)>=selected.base+0xBA0;
+            const bool vHeld=vF3 && c.bridge.ddiHeld(io,ddi);
+            IOLog("VOSTRO combo ddi=%u lanes=%u rate=%u swing=%u emph=%u panel=%d low=%d vbtlow=%d sel=%d f620=%d f5c8=%d f60=%d held=%d lvl=%u sw=%x sc=%x cur=%x p1=%x\\n",
+             ddi,vLanes,vRate,swing,emphasis,(int)vPanel,(int)vLow,(int)s->firmwarePorts.panel.lowSwing,(int)vSel,(int)vF1,(int)vF2,(int)vF3,(int)vHeld,
+             selected.level,selected.swing,selected.scalar,selected.cursor,selected.post1);
+            if(vHeld) {{"""
+          assert s.count(old_if) == 1, "selectADLP block not found"
+          s = s.replace(old_if, new_if)
+
+          old_res = """       [&](uint32_t r,uint32_t v){registers.write(r,v);} ))result=0;
+            }
+           }
+           IOLockUnlock(c.lock);return result;"""
+          new_res = """       [&](uint32_t r,uint32_t v){registers.write(r,v);} ))result=0;
+             IOLog("VOSTRO combo program result=%x\\n",result);
+            }
+           }
+           IOLockUnlock(c.lock);return result;"""
+          assert s.count(old_res) == 1, "result block not found"
+          s = s.replace(old_res, new_res)
+          open(path, "w").write(s)
+          print("patched:", mode)
+          PYEOF
+      - name: Varyantlari derle
+        run: |
+          mkdir -p out
+          for v in lowswing tani; do
+            cp -R wex "w_$v"
+            python3 wex_patch.py "w_$v/WhateverXe/kern_xe.cpp" "$v"
+            ( cd "w_$v" && python3 tools/build.py --release --output build/RELEASE )
+            K="$(find "w_$v/build/RELEASE" -type d -name WhateverXe.kext | head -1)"
+            test -n "$K"
+            mkdir -p "out/$v" && cp -R "$K" "out/$v/"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "out/$v/WhateverXe.kext/Contents/Info.plist"
+          done
+          ls -R out | head -40
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wex-vostro
+          path: out/
