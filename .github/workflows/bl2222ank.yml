@@ -1615,6 +1615,43 @@ jobs:
           plistlib.dump(d,open(p,'wb'))
           print('pinconfig eklendi', len(es))
           PYEOF
+      - name: CS8409 format yamasi (AppleALC executeVerb)
+        working-directory: alc
+        run: |
+          python3 - <<'PYEOF'
+          p='AppleALC/kern_alc.cpp'
+          s=open(p).read()
+          old="""	return FunctionCast(IOHDACodecDevice_executeVerb, callbackAlc->orgIOHDACodecDevice_executeVerb)(hdaCodecDevice, nid, verb, param, output, waitForSuccess);
+          }"""
+          new="""	auto vOrg = FunctionCast(IOHDACodecDevice_executeVerb, callbackAlc->orgIOHDACodecDevice_executeVerb);
+          	IOReturn vRes = vOrg(hdaCodecDevice, nid, verb, param, output, waitForSuccess);
+          	// Vostro 3520 CS8409: ses cikis birimleri (0x02-0x11) PCM/format parametresini 0 dondurur.
+          	// HDA spesifikasyonuna gore bu durumda AFG (0x01) degerleri gecerlidir; AppleHDA'ya onlari ver.
+          	if (vRes == kIOReturnSuccess && output && verb == 0xF00 && (param == 0x0A || param == 0x0B) &&
+          	    nid >= 0x02 && nid <= 0x11 && *output == 0) {
+          		static void *vDev = nullptr; static bool vIsCS = false; static uint32_t vCount = 0;
+          		if (vDev != hdaCodecDevice) {
+          			unsigned int vid = 0;
+          			vOrg(hdaCodecDevice, 0, 0xF00, 0x00, &vid, true);
+          			vIsCS = (vid == 0x10138409); vDev = hdaCodecDevice;
+          		}
+          		if (vIsCS) {
+          			unsigned int afg = 0;
+          			if (vOrg(hdaCodecDevice, 1, 0xF00, param, &afg, true) == kIOReturnSuccess && afg) {
+          				*output = afg;
+          				vCount++;
+          				auto root = IORegistryEntry::getRegistryRoot();
+          				if (root) root->setProperty("VostroCS8409FormatFix", vCount, 32);
+          			}
+          		}
+          	}
+          	return vRes;
+          }"""
+          assert s.count(old)==1, "anchor yok"
+          s=s.replace(old,new)
+          open(p,'w').write(s)
+          print("CS8409 format yamasi uygulandi")
+          PYEOF
       - name: Derle
         working-directory: alc
         run: |
