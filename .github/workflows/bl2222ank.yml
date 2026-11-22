@@ -1705,6 +1705,33 @@ jobs:
           grep -n 'CS8409\|0x8409' "$R" | head -5
           grep -q 'CS8409' "$R"
           mkdir -p ../out && cp -R "$K" ../out/
+      - name: VoodooHDA (CS8409 icin, AppleHDA'siz bagimsiz surucu)
+        continue-on-error: true
+        run: |
+          set -e
+          git clone -q --depth 1 -b 4.0.1 https://github.com/CloverHackyColor/VoodooHDA vhda
+          git clone -q --depth 1 https://github.com/joevt/MacKernelSDK.git MacKernelSDK
+          PC=alc/Resources/PinConfigs.kext/Contents/Info.plist
+          grep -c 269714441 "$PC"
+          python3 vhda/tools/gen_pinconfigs.py "$PC" vhda/tranc
+          grep -n 0x10138409 vhda/tranc/AppleALCPinConfigs.cpp
+          python3 - <<'PYEOF'
+          import plistlib
+          p='vhda/tranc/Info.plist'
+          d=plistlib.load(open(p,'rb'))
+          v=d['IOKitPersonalities']['VoodooHDA']
+          v['IONameMatch']=['HDEF','HDAS']
+          v['IOProbeScore']=100000
+          v.pop('LayoutId',None)
+          plistlib.dump(d,open(p,'wb'))
+          print('VoodooHDA Info.plist: HDEF eslesme + yuksek skor')
+          PYEOF
+          cd vhda/tranc
+          xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -30
+          K="$(find build -type d -name VoodooHDA.kext -path '*Release*' | head -1)"
+          test -n "$K"
+          cp -R "$K" "$GITHUB_WORKSPACE/out/"
+          ls "$GITHUB_WORKSPACE/out"
       - uses: actions/upload-artifact@v4
         with:
           name: k-alc
@@ -1860,6 +1887,7 @@ jobs:
           B64
           tar xzf p.tgz
           cp -R kx/WhateverXe.kext kx/RealtekBluetoothFirmware.kext kx/Vostrointosh.app kx/alc-verb kx/AppleALC.kext vostro-paket/
+          [ -d kx/VoodooHDA.kext ] && cp -R kx/VoodooHDA.kext vostro-paket/ || echo 'VoodooHDA yok'
           chmod 755 vostro-paket/*.sh vostro-paket/*.command vostro-paket/Vostrointosh.app/Contents/MacOS/Vostrointosh vostro-paket/alc-verb
           xattr -cr vostro-paket || true
           ditto -c -k --keepParent vostro-paket vostro-paket.zip
