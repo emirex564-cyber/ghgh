@@ -1,75 +1,186 @@
-# Vostro 3520 - RealtekBluetoothFirmware yamali derleme
-#  - Bluetooth loglari IORegistry'ye yazilir (VostroBT00.., Wi-Fi/ekran spami silemez)
-#  - 0bda:c829 kimligi ekli
-# Cikti: bt-vostro.zip -> RealtekBluetoothFirmware.kext
-name: Build BT Vostro
+# Vostro 3520 - WhateverXe 0.8.3 yamali derleme (dahili ekran link training)
+# Kullanim: repo > .github/workflows/build-wex-vostro.yml > Actions > Run workflow
+# Cikti: wex-vostro.zip  (tani3/WhateverXe.kext - davranis ayni, sadece kayit)
+name: Build WEX Vostro
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-15-intel
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: thegwchr/RealtekBluetoothFirmware
-          path: rbf
+          repository: b00t0x/WhateverXe
+          ref: "0.8.3"
+          path: wex
           persist-credentials: false
-      - name: Yama
+      - uses: actions/checkout@v4
+        with:
+          repository: acidanthera/MacKernelSDK
+          ref: 05094e5e88cec7caedbfb35e8449ed0db94bf95b
+          path: wex/MacKernelSDK
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: acidanthera/Lilu
+          ref: "1.7.2"
+          path: lilu
+          persist-credentials: false
+      - name: Lilu gelistirme dosyalari
         run: |
-          cat > rbf_patch.py <<'PYEOF'
+          mkdir -p wex/Lilu.kext/Contents/Resources
+          ln -s "$GITHUB_WORKSPACE/lilu/Lilu/Headers" wex/Lilu.kext/Contents/Resources/Headers
+          ln -s "$GITHUB_WORKSPACE/lilu/Lilu/Library" wex/Lilu.kext/Contents/Resources/Library
+      - name: Yama scripti
+        run: |
+          cat > wex_patch.py <<'PYEOF'
           #!/usr/bin/env python3
-          """RealtekBluetoothFirmware yamasi: XYLog satirlarini IORegistry'ye de yaz + 0bda:c829 ekle."""
-          import plistlib, copy, sys
-          root = sys.argv[1]
-          log = root + "/RealtekBluetoothFirmware/Log.h"
-          s = open(log).read()
-          old = '''#define XYLog(fmt, x...)\\
-          do\\
-          {\\
-          IOLog("%s: " fmt, "RealtekFirmware", ##x);\\
-          }while(0)'''
-          assert s.count(old) == 1, "Log.h makrosu bulunamadi"
-          new = '''#include <stdarg.h>
-          #include <IOKit/IORegistryEntry.h>
-          #include <libkern/OSAtomic.h>
-          inline void vostroBTRecord(const char *fmt, ...) {
-              static volatile SInt32 seq = 0;
-              char line[240]; va_list ap; va_start(ap, fmt); vsnprintf(line, sizeof(line), fmt, ap); va_end(ap);
-              for (char *c = line; *c; ++c) if (*c == '\\n') *c = ' ';
-              const SInt32 n = OSIncrementAtomic(&seq);
-              IORegistryEntry *r = IORegistryEntry::getRegistryRoot(); if (!r) return;
-              char key[32];
-              if (n < 64) { snprintf(key, sizeof(key), "VostroBT%02d", (int)n); r->setProperty(key, line); }
-              r->setProperty("VostroBTLast", line);
-          }
-          #define XYLog(fmt, x...)\\
-          do\\
-          {\\
-          IOLog("%s: " fmt, "RealtekFirmware", ##x);\\
-          vostroBTRecord(fmt, ##x);\\
-          }while(0)'''
-          s = s.replace(old, new)
-          open(log, "w").write(s)
+          """Vostro 3520 WhateverXe 0.8.3 tani yamasi v3 (davranis DEGISMEZ, sadece kayit).
+            python3 wex_patch.py <WhateverXe/kern_xe.cpp>
+          Kayitlar IORegistry kokunde: VostroCombo00..47, VostroComboLast, VostroComboCount
+          """
+          import sys
+          path = sys.argv[1]
+          s = open(path).read()
 
-          p = root + "/RealtekBluetoothFirmware/Info.plist"
-          d = plistlib.load(open(p, "rb"))
-          pers = d["IOKitPersonalities"]
-          key = "RealtekBluetoothFirmware_0bda_c829"
-          if key not in pers:
-              tmpl = next(v for k, v in pers.items() if k.startswith("RealtekBluetoothFirmware_0bda_"))
-              n = copy.deepcopy(tmpl); n["idVendor"] = 0x0bda; n["idProduct"] = 0xc829; pers[key] = n
-          plistlib.dump(d, open(p, "wb"))
-          print("rbf patched")
+          def rep(old, new):
+              global s
+              assert s.count(old) == 1, "bulunamadi: " + old[:70]
+              s = s.replace(old, new)
+
+          helper = """
+          static volatile SInt32 vostroSeq=0;
+          static void vostroRecord(const char *fmt,...) {
+           char line[256];__builtin_va_list ap;__builtin_va_start(ap,fmt);vsnprintf(line,sizeof(line),fmt,ap);__builtin_va_end(ap);
+           IOLog("VOSTRO %s\\n",line);
+           const SInt32 n=OSIncrementAtomic(&vostroSeq);
+           auto root=IORegistryEntry::getRegistryRoot();if(!root)return;
+           char key[32];
+           if(n<48){snprintf(key,sizeof(key),"VostroCombo%02d",(int)n);root->setProperty(key,line);}
+           root->setProperty("VostroComboLast",line);
+           root->setProperty("VostroComboCount",(unsigned long long)(n+1),32);
+          }
+          static volatile uint32_t vostroLastWhy=0xFFFFFFFFU,vostroLastDDI=0xFFFFFFFFU;
+          """
+
+          # 1) helper'i ilk kullanimdan once koy
+          rep("uint32_t XE::wrapDisplay13PortTraining(void *port,void *request) {",
+              helper + "uint32_t XE::wrapDisplay13PortTraining(void *port,void *request) {")
+
+          # 2) training wrapper: neden reddedildigini ve sonucu kaydet
+          rep(""" IOLockLock(c.lock);auto p=display13SSTPort(port);
+           const bool valid=p && p[0x115]==1 && !p[0x117] && p[0x10]<=1 && p[0x11A]<=1;
+           if(valid)p[0x11A]&=p[0x10];
+           IOLockUnlock(c.lock);if(!valid)return kIOReturnNotReady;
+           return FunctionCast(wrapDisplay13PortTraining,s->orgDisplay13PortTraining)(port,request);""",
+          """ IOLockLock(c.lock);auto p=display13SSTPort(port);
+           const bool valid=p && p[0x115]==1 && !p[0x117] && p[0x10]<=1 && p[0x11A]<=1;
+           const unsigned vDDI=p?Display13FBMemory::field<uint32_t>(p,0x120):0xFFU;
+           const unsigned v115=p?p[0x115]:0xFFU,v117=p?p[0x117]:0xFFU,v10=p?p[0x10]:0xFFU,v11A=p?p[0x11A]:0xFFU;
+           if(valid)p[0x11A]&=p[0x10];
+           IOLockUnlock(c.lock);
+           if(!valid){vostroRecord("train REFUSED sst=%d ddi=%u f115=%u f117=%u f10=%u f11a=%u",(int)(p!=nullptr),vDDI,v115,v117,v10,v11A);return kIOReturnNotReady;}
+           const uint32_t vRes=FunctionCast(wrapDisplay13PortTraining,s->orgDisplay13PortTraining)(port,request);
+           vostroRecord("train ddi=%u result=%x",vDDI,vRes);
+           return vRes;""")
+
+          # 3) display13SSTPort: hangi kontrolun tutmadigini bit olarak kaydet (davranis ayni)
+          rep("""uint8_t *XE::display13SSTPort(void *port) {
+           auto s=callbackXE;auto &c=display13FBPower;auto object=static_cast<OSObject *>(port);
+           if(!s->display13FramebufferRequested || s->xeProfile.display!=XELP::Display::XeLPD || !s->display13FBSSTHooksReady ||
+              !object || object->getMetaClass()->getClassSize()<0x624 || !c.controller ||
+              c.controller!=s->adlnTopologyController || !adlnWriterMappingBound() ||
+              c.clockFaulted || c.memoryFaulted || c.panelFaulted || c.clockStopped || !s->adlnOutputWiring.described())return nullptr;
+           auto p=static_cast<uint8_t *>(port);auto config=Display13FBMemory::field<uint32_t *>(p,0x548);
+           if(!Display13FBTopology::selected(s->adlnPlatform,config,s->adlnOutputWiring) ||
+              !(s->adlnOutputWiring.links()&(1U<<config[0])) || p[0x117] ||
+              Display13FBMemory::field<uint32_t>(p,0x120)!=config[0] ||""",
+          """uint8_t *XE::display13SSTPort(void *port) {
+           auto s=callbackXE;auto &c=display13FBPower;auto object=static_cast<OSObject *>(port);
+           {
+            uint32_t why=0;
+            if(!s->display13FramebufferRequested)why|=0x1;
+            if(s->xeProfile.display!=XELP::Display::XeLPD)why|=0x2;
+            if(!s->display13FBSSTHooksReady)why|=0x4;
+            if(!object || object->getMetaClass()->getClassSize()<0x624)why|=0x8;
+            if(!c.controller || c.controller!=s->adlnTopologyController)why|=0x10;
+            if(!adlnWriterMappingBound())why|=0x20;
+            if(c.clockFaulted)why|=0x40;
+            if(c.memoryFaulted)why|=0x80;
+            if(c.panelFaulted)why|=0x100;
+            if(c.clockStopped)why|=0x200;
+            if(!s->adlnOutputWiring.described())why|=0x400;
+            uint32_t ddi=0xFFU,mode=0xFFFFU;
+            if(!(why&0x8)) {
+             auto pp=static_cast<uint8_t *>(port);auto cfg=Display13FBMemory::field<uint32_t *>(pp,0x548);
+             if(!Display13FBTopology::selected(s->adlnPlatform,cfg,s->adlnOutputWiring))why|=0x800;
+             else {
+              ddi=cfg[0];mode=Display13FBMemory::field<uint32_t>(pp,0x550);
+              if(!(s->adlnOutputWiring.links()&(1U<<ddi)))why|=0x1000;
+              if(pp[0x117])why|=0x2000;
+              if(Display13FBMemory::field<uint32_t>(pp,0x120)!=ddi)why|=0x4000;
+              if(ddi>=3 ? mode!=((s->adlnOutputWiring.typeC&(1U<<ddi))?3U:4U) : mode>1U)why|=0x8000;
+              if(Display13FBMemory::field<void *>(pp,0x578)!=c.access)why|=0x10000;
+             }
+            }
+            if(why!=vostroLastWhy || ddi!=vostroLastDDI) {
+             vostroLastWhy=why;vostroLastDDI=ddi;
+             vostroRecord("sst ddi=%u why=%x mode=%u links=%x panel=%x dp=%x described=%d",ddi,why,mode,
+              (unsigned)s->adlnOutputWiring.links(),(unsigned)s->adlnOutputWiring.panel,(unsigned)s->adlnOutputWiring.dp,(int)s->adlnOutputWiring.described());
+            }
+           }
+           if(!s->display13FramebufferRequested || s->xeProfile.display!=XELP::Display::XeLPD || !s->display13FBSSTHooksReady ||
+              !object || object->getMetaClass()->getClassSize()<0x624 || !c.controller ||
+              c.controller!=s->adlnTopologyController || !adlnWriterMappingBound() ||
+              c.clockFaulted || c.memoryFaulted || c.panelFaulted || c.clockStopped || !s->adlnOutputWiring.described())return nullptr;
+           auto p=static_cast<uint8_t *>(port);auto config=Display13FBMemory::field<uint32_t *>(p,0x548);
+           if(!Display13FBTopology::selected(s->adlnPlatform,config,s->adlnOutputWiring) ||
+              !(s->adlnOutputWiring.links()&(1U<<config[0])) || p[0x117] ||
+              Display13FBMemory::field<uint32_t>(p,0x120)!=config[0] ||""")
+
+          # 4) hook kurulumu: kaydin calistigini acilista dogrula
+          rep(""" display13FBSSTHooksReady=patcher.routeMultiple(index,routes,arrsize(routes),address,size);patcher.clearError();
+           return display13FBSSTHooksReady;""",
+          """ display13FBSSTHooksReady=patcher.routeMultiple(index,routes,arrsize(routes),address,size);patcher.clearError();
+           vostroRecord("boot sst-hooks=%d",(int)display13FBSSTHooksReady);
+           return display13FBSSTHooksReady;""")
+
+          # 5) sinyal fonksiyonu (onceki tani)
+          rep(""" if(!s->adlnOutputWiring.links() || display13HDMIPort(port))
+            return FunctionCast(wrapDisplay13SignalLevels,s->orgDisplay13SignalLevels)(port,swing,emphasis,overrideConfig);""",
+          """ if(!s->adlnOutputWiring.links() || display13HDMIPort(port)) {
+            vostroRecord("signal donor-path links=%x swing=%u emph=%u",(unsigned)s->adlnOutputWiring.links(),swing,emphasis);
+            return FunctionCast(wrapDisplay13SignalLevels,s->orgDisplay13SignalLevels)(port,swing,emphasis,overrideConfig);
+           }""")
+          rep("""       [&](uint32_t r,uint32_t v){registers.write(r,v);} ))result=0;
+            }
+           }
+           IOLockUnlock(c.lock);return result;""",
+          """       [&](uint32_t r,uint32_t v){registers.write(r,v);} ))result=0;
+            }
+            vostroRecord("signal ddi=%u lanes=%u rate=%u swing=%u emph=%u result=%x",ddi,
+             Display13FBMemory::field<uint32_t>(p,0x124),Display13FBMemory::field<uint32_t>(p,0x128),swing,emphasis,result);
+           }
+           IOLockUnlock(c.lock);return result;""")
+
+          open(path, "w").write(s)
+          print("patched v3")
           PYEOF
-          python3 rbf_patch.py rbf
-      - name: Derle + imzala
+      - name: Varyantlari derle
         run: |
-          cd rbf && make
-          codesign -f -s - build/RealtekBluetoothFirmware.kext
-          mkdir -p ../out && cp -R build/RealtekBluetoothFirmware.kext ../out/
+          mkdir -p out
+          v=tani3
+          cp -R wex "w_$v"
+          python3 wex_patch.py "w_$v/WhateverXe/kern_xe.cpp"
+          ( cd "w_$v" && python3 tools/build.py --release --output build/RELEASE )
+          K="$(find "w_$v/build/RELEASE" -type d -name WhateverXe.kext | head -1)"
+          test -n "$K"
+          mkdir -p "out/$v" && cp -R "$K" "out/$v/"
+          ls -R out | head -40
       - uses: actions/upload-artifact@v4
         with:
-          name: bt-vostro
+          name: wex-vostro
           path: out/
