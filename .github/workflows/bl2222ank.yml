@@ -1,6 +1,6 @@
 # Vostro 3520 - WhateverXe 0.8.3 yamali derleme (dahili ekran link training)
 # Kullanim: repo > .github/workflows/build-wex-vostro.yml > Actions > Run workflow
-# Cikti: wex-vostro.zip  (lowswing/WhateverXe.kext ve tani/WhateverXe.kext)
+# Cikti: wex-vostro.zip  (tani3/WhateverXe.kext - davranis ayni, sadece kayit)
 name: Build WEX Vostro
 
 on:
@@ -38,77 +38,147 @@ jobs:
         run: |
           cat > wex_patch.py <<'PYEOF'
           #!/usr/bin/env python3
-          """Vostro 3520 WhateverXe patch.
-            python3 wex_patch.py <WhateverXe/kern_xe.cpp> tani      -> sadece log ekler (davranis ayni)
-            python3 wex_patch.py <WhateverXe/kern_xe.cpp> lowswing  -> log + dahili ekran (DDI-A) icin low-swing tablo
+          """Vostro 3520 WhateverXe 0.8.3 tani yamasi v3 (davranis DEGISMEZ, sadece kayit).
+            python3 wex_patch.py <WhateverXe/kern_xe.cpp>
+          Kayitlar IORegistry kokunde: VostroCombo00..47, VostroComboLast, VostroComboCount
           """
           import sys
-          path, mode = sys.argv[1], sys.argv[2]
+          path = sys.argv[1]
           s = open(path).read()
 
-          old_donor = """ if(!s->adlnOutputWiring.links() || display13HDMIPort(port))
-            return FunctionCast(wrapDisplay13SignalLevels,s->orgDisplay13SignalLevels)(port,swing,emphasis,overrideConfig);
-           if(!c.lock)return kIOReturnNotReady;
-           IOLockLock(c.lock);auto p=display13SSTPort(port);uint32_t result=kIOReturnNotReady;"""
-          new_donor = """ if(!s->adlnOutputWiring.links() || display13HDMIPort(port)) {
-            IOLog("VOSTRO combo donor-path links=%d hdmi=%d swing=%u emph=%u\\n",(int)s->adlnOutputWiring.links(),(int)display13HDMIPort(port),swing,emphasis);
-            return FunctionCast(wrapDisplay13SignalLevels,s->orgDisplay13SignalLevels)(port,swing,emphasis,overrideConfig);
-           }
-           if(!c.lock)return kIOReturnNotReady;
-           IOLockLock(c.lock);auto p=display13SSTPort(port);uint32_t result=kIOReturnNotReady;
-           if(!p || overrideConfig)IOLog("VOSTRO combo no-sst p=%d override=%d\\n",(int)(p!=nullptr),(int)(overrideConfig!=nullptr));"""
-          assert s.count(old_donor) == 1, "donor block not found"
-          s = s.replace(old_donor, new_donor)
+          def rep(old, new):
+              global s
+              assert s.count(old) == 1, "bulunamadi: " + old[:70]
+              s = s.replace(old, new)
 
-          old_if = """  if(selected.selectADLP(ddi,Display13FBMemory::field<uint32_t>(p,0x124),Display13FBMemory::field<uint32_t>(p,0x128),swing,emphasis,(s->adlnOutputWiring.panel&(1U<<ddi))!=0,s->firmwarePorts.panel.lowSwing) &&
-               Display13FBMemory::field<uint32_t>(p,0x620)==selected.base+0x804 &&
-               Display13FBMemory::field<uint32_t>(p,0x5C8)==selected.base+0x28 &&
-               Display13FBMemory::field<uint32_t>(c.access,0x60)>=selected.base+0xBA0 && c.bridge.ddiHeld(io,ddi)) {"""
-          panel_expr = "(s->adlnOutputWiring.panel&(1U<<ddi))!=0"
-          low_expr = "s->firmwarePorts.panel.lowSwing"
-          if mode == "lowswing":
-              panel_expr = "(ddi==0 || (s->adlnOutputWiring.panel&(1U<<ddi))!=0)"
-              low_expr = "true"
-          new_if = f"""  const uint32_t vLanes=Display13FBMemory::field<uint32_t>(p,0x124),vRate=Display13FBMemory::field<uint32_t>(p,0x128);
-            const bool vPanel={panel_expr},vLow={low_expr};
-            const bool vSel=selected.selectADLP(ddi,vLanes,vRate,swing,emphasis,vPanel,vLow);
-            const bool vF1=vSel && Display13FBMemory::field<uint32_t>(p,0x620)==selected.base+0x804;
-            const bool vF2=vF1 && Display13FBMemory::field<uint32_t>(p,0x5C8)==selected.base+0x28;
-            const bool vF3=vF2 && Display13FBMemory::field<uint32_t>(c.access,0x60)>=selected.base+0xBA0;
-            const bool vHeld=vF3 && c.bridge.ddiHeld(io,ddi);
-            IOLog("VOSTRO combo ddi=%u lanes=%u rate=%u swing=%u emph=%u panel=%d low=%d vbtlow=%d sel=%d f620=%d f5c8=%d f60=%d held=%d lvl=%u sw=%x sc=%x cur=%x p1=%x\\n",
-             ddi,vLanes,vRate,swing,emphasis,(int)vPanel,(int)vLow,(int)s->firmwarePorts.panel.lowSwing,(int)vSel,(int)vF1,(int)vF2,(int)vF3,(int)vHeld,
-             selected.level,selected.swing,selected.scalar,selected.cursor,selected.post1);
-            if(vHeld) {{"""
-          assert s.count(old_if) == 1, "selectADLP block not found"
-          s = s.replace(old_if, new_if)
+          helper = """
+          static volatile SInt32 vostroSeq=0;
+          static void vostroRecord(const char *fmt,...) {
+           char line[256];__builtin_va_list ap;__builtin_va_start(ap,fmt);vsnprintf(line,sizeof(line),fmt,ap);__builtin_va_end(ap);
+           IOLog("VOSTRO %s\\n",line);
+           const SInt32 n=OSIncrementAtomic(&vostroSeq);
+           auto root=IORegistryEntry::getRegistryRoot();if(!root)return;
+           char key[32];
+           if(n<48){snprintf(key,sizeof(key),"VostroCombo%02d",(int)n);root->setProperty(key,line);}
+           root->setProperty("VostroComboLast",line);
+           root->setProperty("VostroComboCount",(unsigned long long)(n+1),32);
+          }
+          static volatile uint32_t vostroLastWhy=0xFFFFFFFFU,vostroLastDDI=0xFFFFFFFFU;
+          """
 
-          old_res = """       [&](uint32_t r,uint32_t v){registers.write(r,v);} ))result=0;
+          # 1) helper'i ilk kullanimdan once koy
+          rep("uint32_t XE::wrapDisplay13PortTraining(void *port,void *request) {",
+              helper + "uint32_t XE::wrapDisplay13PortTraining(void *port,void *request) {")
+
+          # 2) training wrapper: neden reddedildigini ve sonucu kaydet
+          rep(""" IOLockLock(c.lock);auto p=display13SSTPort(port);
+           const bool valid=p && p[0x115]==1 && !p[0x117] && p[0x10]<=1 && p[0x11A]<=1;
+           if(valid)p[0x11A]&=p[0x10];
+           IOLockUnlock(c.lock);if(!valid)return kIOReturnNotReady;
+           return FunctionCast(wrapDisplay13PortTraining,s->orgDisplay13PortTraining)(port,request);""",
+          """ IOLockLock(c.lock);auto p=display13SSTPort(port);
+           const bool valid=p && p[0x115]==1 && !p[0x117] && p[0x10]<=1 && p[0x11A]<=1;
+           const unsigned vDDI=p?Display13FBMemory::field<uint32_t>(p,0x120):0xFFU;
+           const unsigned v115=p?p[0x115]:0xFFU,v117=p?p[0x117]:0xFFU,v10=p?p[0x10]:0xFFU,v11A=p?p[0x11A]:0xFFU;
+           if(valid)p[0x11A]&=p[0x10];
+           IOLockUnlock(c.lock);
+           if(!valid){vostroRecord("train REFUSED sst=%d ddi=%u f115=%u f117=%u f10=%u f11a=%u",(int)(p!=nullptr),vDDI,v115,v117,v10,v11A);return kIOReturnNotReady;}
+           const uint32_t vRes=FunctionCast(wrapDisplay13PortTraining,s->orgDisplay13PortTraining)(port,request);
+           vostroRecord("train ddi=%u result=%x",vDDI,vRes);
+           return vRes;""")
+
+          # 3) display13SSTPort: hangi kontrolun tutmadigini bit olarak kaydet (davranis ayni)
+          rep("""uint8_t *XE::display13SSTPort(void *port) {
+           auto s=callbackXE;auto &c=display13FBPower;auto object=static_cast<OSObject *>(port);
+           if(!s->display13FramebufferRequested || s->xeProfile.display!=XELP::Display::XeLPD || !s->display13FBSSTHooksReady ||
+              !object || object->getMetaClass()->getClassSize()<0x624 || !c.controller ||
+              c.controller!=s->adlnTopologyController || !adlnWriterMappingBound() ||
+              c.clockFaulted || c.memoryFaulted || c.panelFaulted || c.clockStopped || !s->adlnOutputWiring.described())return nullptr;
+           auto p=static_cast<uint8_t *>(port);auto config=Display13FBMemory::field<uint32_t *>(p,0x548);
+           if(!Display13FBTopology::selected(s->adlnPlatform,config,s->adlnOutputWiring) ||
+              !(s->adlnOutputWiring.links()&(1U<<config[0])) || p[0x117] ||
+              Display13FBMemory::field<uint32_t>(p,0x120)!=config[0] ||""",
+          """uint8_t *XE::display13SSTPort(void *port) {
+           auto s=callbackXE;auto &c=display13FBPower;auto object=static_cast<OSObject *>(port);
+           {
+            uint32_t why=0;
+            if(!s->display13FramebufferRequested)why|=0x1;
+            if(s->xeProfile.display!=XELP::Display::XeLPD)why|=0x2;
+            if(!s->display13FBSSTHooksReady)why|=0x4;
+            if(!object || object->getMetaClass()->getClassSize()<0x624)why|=0x8;
+            if(!c.controller || c.controller!=s->adlnTopologyController)why|=0x10;
+            if(!adlnWriterMappingBound())why|=0x20;
+            if(c.clockFaulted)why|=0x40;
+            if(c.memoryFaulted)why|=0x80;
+            if(c.panelFaulted)why|=0x100;
+            if(c.clockStopped)why|=0x200;
+            if(!s->adlnOutputWiring.described())why|=0x400;
+            uint32_t ddi=0xFFU,mode=0xFFFFU;
+            if(!(why&0x8)) {
+             auto pp=static_cast<uint8_t *>(port);auto cfg=Display13FBMemory::field<uint32_t *>(pp,0x548);
+             if(!Display13FBTopology::selected(s->adlnPlatform,cfg,s->adlnOutputWiring))why|=0x800;
+             else {
+              ddi=cfg[0];mode=Display13FBMemory::field<uint32_t>(pp,0x550);
+              if(!(s->adlnOutputWiring.links()&(1U<<ddi)))why|=0x1000;
+              if(pp[0x117])why|=0x2000;
+              if(Display13FBMemory::field<uint32_t>(pp,0x120)!=ddi)why|=0x4000;
+              if(ddi>=3 ? mode!=((s->adlnOutputWiring.typeC&(1U<<ddi))?3U:4U) : mode>1U)why|=0x8000;
+              if(Display13FBMemory::field<void *>(pp,0x578)!=c.access)why|=0x10000;
+             }
+            }
+            if(why!=vostroLastWhy || ddi!=vostroLastDDI) {
+             vostroLastWhy=why;vostroLastDDI=ddi;
+             vostroRecord("sst ddi=%u why=%x mode=%u links=%x panel=%x dp=%x described=%d",ddi,why,mode,
+              (unsigned)s->adlnOutputWiring.links(),(unsigned)s->adlnOutputWiring.panel,(unsigned)s->adlnOutputWiring.dp,(int)s->adlnOutputWiring.described());
             }
            }
-           IOLockUnlock(c.lock);return result;"""
-          new_res = """       [&](uint32_t r,uint32_t v){registers.write(r,v);} ))result=0;
-             IOLog("VOSTRO combo program result=%x\\n",result);
+           if(!s->display13FramebufferRequested || s->xeProfile.display!=XELP::Display::XeLPD || !s->display13FBSSTHooksReady ||
+              !object || object->getMetaClass()->getClassSize()<0x624 || !c.controller ||
+              c.controller!=s->adlnTopologyController || !adlnWriterMappingBound() ||
+              c.clockFaulted || c.memoryFaulted || c.panelFaulted || c.clockStopped || !s->adlnOutputWiring.described())return nullptr;
+           auto p=static_cast<uint8_t *>(port);auto config=Display13FBMemory::field<uint32_t *>(p,0x548);
+           if(!Display13FBTopology::selected(s->adlnPlatform,config,s->adlnOutputWiring) ||
+              !(s->adlnOutputWiring.links()&(1U<<config[0])) || p[0x117] ||
+              Display13FBMemory::field<uint32_t>(p,0x120)!=config[0] ||""")
+
+          # 4) hook kurulumu: kaydin calistigini acilista dogrula
+          rep(""" display13FBSSTHooksReady=patcher.routeMultiple(index,routes,arrsize(routes),address,size);patcher.clearError();
+           return display13FBSSTHooksReady;""",
+          """ display13FBSSTHooksReady=patcher.routeMultiple(index,routes,arrsize(routes),address,size);patcher.clearError();
+           vostroRecord("boot sst-hooks=%d",(int)display13FBSSTHooksReady);
+           return display13FBSSTHooksReady;""")
+
+          # 5) sinyal fonksiyonu (onceki tani)
+          rep(""" if(!s->adlnOutputWiring.links() || display13HDMIPort(port))
+            return FunctionCast(wrapDisplay13SignalLevels,s->orgDisplay13SignalLevels)(port,swing,emphasis,overrideConfig);""",
+          """ if(!s->adlnOutputWiring.links() || display13HDMIPort(port)) {
+            vostroRecord("signal donor-path links=%x swing=%u emph=%u",(unsigned)s->adlnOutputWiring.links(),swing,emphasis);
+            return FunctionCast(wrapDisplay13SignalLevels,s->orgDisplay13SignalLevels)(port,swing,emphasis,overrideConfig);
+           }""")
+          rep("""       [&](uint32_t r,uint32_t v){registers.write(r,v);} ))result=0;
             }
            }
-           IOLockUnlock(c.lock);return result;"""
-          assert s.count(old_res) == 1, "result block not found"
-          s = s.replace(old_res, new_res)
+           IOLockUnlock(c.lock);return result;""",
+          """       [&](uint32_t r,uint32_t v){registers.write(r,v);} ))result=0;
+            }
+            vostroRecord("signal ddi=%u lanes=%u rate=%u swing=%u emph=%u result=%x",ddi,
+             Display13FBMemory::field<uint32_t>(p,0x124),Display13FBMemory::field<uint32_t>(p,0x128),swing,emphasis,result);
+           }
+           IOLockUnlock(c.lock);return result;""")
+
           open(path, "w").write(s)
-          print("patched:", mode)
+          print("patched v3")
           PYEOF
       - name: Varyantlari derle
         run: |
           mkdir -p out
-          for v in lowswing tani; do
-            cp -R wex "w_$v"
-            python3 wex_patch.py "w_$v/WhateverXe/kern_xe.cpp" "$v"
-            ( cd "w_$v" && python3 tools/build.py --release --output build/RELEASE )
-            K="$(find "w_$v/build/RELEASE" -type d -name WhateverXe.kext | head -1)"
-            test -n "$K"
-            mkdir -p "out/$v" && cp -R "$K" "out/$v/"
-            /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "out/$v/WhateverXe.kext/Contents/Info.plist"
-          done
+          v=tani3
+          cp -R wex "w_$v"
+          python3 wex_patch.py "w_$v/WhateverXe/kern_xe.cpp"
+          ( cd "w_$v" && python3 tools/build.py --release --output build/RELEASE )
+          K="$(find "w_$v/build/RELEASE" -type d -name WhateverXe.kext | head -1)"
+          test -n "$K"
+          mkdir -p "out/$v" && cp -R "$K" "out/$v/"
           ls -R out | head -40
       - uses: actions/upload-artifact@v4
         with:
