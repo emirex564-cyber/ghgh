@@ -1604,6 +1604,49 @@ jobs:
           </plist>
           XEOF
           python3 - <<'PYEOF'
+          # CS8409: AppleHDA yamalari (AppleALC'deki her Realtek-disi codec bunlari kullanir; yoksa motor olusmaz)
+          # + layout 11 = hoparlor + dahili mikrofon
+          import plistlib, copy, re
+          R='Resources/CS8409/'
+          info=plistlib.load(open(R+'Info.plist','rb'))
+          def P(f,r,c,mn=None,mx=None):
+              d={'Name':'AppleHDA','Find':bytes.fromhex(f),'Replace':bytes.fromhex(r),'Count':c}
+              if mn: d['MinKernel']=mn
+              if mx: d['MaxKernel']=mx
+              return d
+          info['Patches']=[
+              P('c60600488bbf6801','c60601488bbf6801',1,18),
+              P('41c60600498bbc24','41c60601498bbc24',1,13,13),
+              P('41c60600488bbb68','41c60601488bbb68',1,14),
+              P('41c6864301000000','41c6864301000001',1,13),
+              P('8419d411','09841310',2,13),
+              P('8319d411','00000000',2,15,15),
+              P('8a19d411','00000000',2,16),
+          ]
+          info['Files']['Layouts'].append({'Comment':'Vostro 3520 CS8409 hoparlor + dahili mikrofon','Id':11,'Path':'layout11.xml.zlib'})
+          info['Files']['Platforms'].append({'Comment':'Vostro 3520 CS8409 hoparlor + dahili mikrofon','Id':11,'Path':'Platforms11.xml.zlib'})
+          plistlib.dump(info,open(R+'Info.plist','wb'))
+          def rd(f): return plistlib.loads(b'<?xml version="1.0"?><plist version="1.0">'+open(R+f,'rb').read()+b'</plist>')
+          def wr(f,d):
+              x=plistlib.dumps(d).decode()
+              x=x[x.index('<dict>'):x.rindex('</plist>')]
+              open(R+f,'w').write(x)
+          l8=rd('layout8.xml'); l9=rd('layout9.xml')
+          l11=copy.deepcopy(l8); l11['LayoutID']=11
+          r=l11['PathMapRef'][0]; r['Inputs']=['Mic']; r['Mic']={}; r['PathMapID']=11
+          wr('layout11.xml',l11)
+          p8=rd('Platforms8.xml'); p9=rd('Platforms9.xml')
+          p11=copy.deepcopy(p8)
+          p11['PathMaps'][0]['PathMapID']=11
+          p11['PathMaps'][0]['PathMap']=p9['PathMaps'][0]['PathMap']+p8['PathMaps'][0]['PathMap']
+          wr('Platforms11.xml',p11)
+          es=plistlib.load(open('/tmp/pin_entries.plist','rb'))
+          e8=[e for e in es if e['LayoutID']==8][0]
+          e11=copy.deepcopy(e8); e11['LayoutID']=11; es.append(e11)
+          plistlib.dump(es,open('/tmp/pin_entries.plist','wb'))
+          print('CS8409 yamalar:',len(info['Patches']),'layoutlar:',[x['Id'] for x in info['Files']['Layouts']])
+          PYEOF
+          python3 - <<'PYEOF'
           import plistlib
           p='Resources/PinConfigs.kext/Contents/Info.plist'
           d=plistlib.load(open(p,'rb'))
