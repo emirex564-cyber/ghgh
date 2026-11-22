@@ -67,15 +67,15 @@ jobs:
           }
           static volatile uint32_t vostroLastWhy=0xFFFFFFFFU,vostroLastDDI=0xFFFFFFFFU;
           #include <pexpert/pexpert.h>
-          struct VostroKnobs {uint32_t swing,emph;bool low;bool loaded;uint32_t tps;bool rev;bool pll;};
+          struct VostroKnobs {uint32_t swing,emph;bool low;bool loaded;uint32_t tps;bool rev;bool pll;bool clk;bool gop;};
           static VostroKnobs vostroKnobs() {
-           static VostroKnobs k {0,0,false,false,0,false,false};
+           static VostroKnobs k {0,0,false,false,0,false,false,false,false};
            if(!k.loaded) {
             uint32_t v=0;
             if(PE_parse_boot_argn("vostroswing",&v,sizeof(v)) && v<=3)k.swing=v;
             v=0;if(PE_parse_boot_argn("vostroemph",&v,sizeof(v)) && v<=3)k.emph=v;
             v=0;if(PE_parse_boot_argn("vostrotps",&v,sizeof(v)) && v>=1 && v<=3)k.tps=v;
-            k.low=checkKernelArgument("-vostrolow");k.rev=checkKernelArgument("-vostrorev");k.pll=checkKernelArgument("-vostropll");k.loaded=true;
+            k.low=checkKernelArgument("-vostrolow");k.rev=checkKernelArgument("-vostrorev");k.pll=checkKernelArgument("-vostropll");k.clk=checkKernelArgument("-vostroclk");k.gop=checkKernelArgument("-vostrogop");k.loaded=true;
             vostroRecord("knobs swing>=%u emph>=%u low=%d tps=%u rev=%d",k.swing,k.emph,(int)k.low,k.tps,(int)k.rev);
            }
            return k;
@@ -237,6 +237,19 @@ jobs:
               registers.read(0x64000+0x100*ddi),registers.read(selected.base+0x28),registers.read(0x60400),registers.read(0x60540),registers.read(0x60544),
               registers.read(0x61400),registers.read(0x61540),registers.read(0x61544),(int)vostroLaneReverse);
              vostroDPLine(rl);
+             {
+              // Transcoder saat secimi: DP_TP_CTL desen ureteci transcoder saatiyle calisir
+              unsigned tr=9;for(unsigned t=0;t<3;t++)if((registers.read(0x60400+0x1000*t)&0x78000000U)==((ddi+1)<<27)){tr=t;break;}
+              const uint32_t want=(ddi+1)<<28;
+              uint32_t cs=tr<3?registers.read(0x46140+4*tr):0;
+              const uint32_t conf=tr<3?registers.read(0x70008+0x1000*tr):0;
+              bool fixed=false;
+              if(tr<3 && vostroKnobs().clk && (cs&0xF0000000U)!=want && !(conf&0x80000000U)){
+               registers.write(0x46140+4*tr,(cs&0x0FFFFFFFU)|want);cs=registers.read(0x46140+4*tr);fixed=true;}
+              snprintf(rl,sizeof(rl),"C trans=%u clksel=%08x want=%08x conf=%08x clk0=%08x clk1=%08x clk2=%08x fixed=%d",
+               tr,cs,want,conf,registers.read(0x46140),registers.read(0x46144),registers.read(0x46148),(int)fixed);
+              vostroDPLine(rl);
+             }
              snprintf(rl,sizeof(rl),"P clka=%08x en0=%08x c0=%08x/%08x en1=%08x c1=%08x/%08x dssm=%08x",
               registers.read(0x164280),registers.read(0x46010),registers.read(0x164284),registers.read(0x164288),
               registers.read(0x46014),registers.read(0x16428C),registers.read(0x164290),registers.read(0x51004));
@@ -335,14 +348,48 @@ jobs:
                const auto r=XELP::SSTProgram::prepare(""","""    if(pattern==1) {
                vostroFixPLL(registers,binding.ddi,Display13FBMemory::field<uint32_t>(p,0x128),vostroKnobs().pll);
                const auto r=XELP::SSTProgram::prepare(""")
+
+          # 13) BIOS/GOP'un PHY ayarlarini macOS dokunmadan once kaydet; -vostrogop ile egitimde onlari kullan
+          #     (XPS13 Plus/NootedGreen notu: "Apple's PHY drive levels differ from UEFI's")
+          rep("""static void vostroDPLine(const char *line) {""","""struct VostroGOP {bool valid;uint32_t buf,bufB,cl10,cl5,dw5,dw2[4],dw4[4],dw7[4],clka,en0,c0,c1,trA,trB,tpA,clkA;};
+          static VostroGOP vostroGOP {};
+          static void vostroDPLine(const char *line);
+          static void vostroDPLine(const char *line) {""")
+          rep("""    const auto boot=AlderLakeN::readDisplay(io,mapped);""","""    const auto boot=AlderLakeN::readDisplay(io,mapped);
+              if(mapped && !vostroGOP.valid) {
+                  auto &g=vostroGOP;const uint32_t b=0x162000;
+                  g.buf=io.read(0x64000);g.bufB=io.read(0x64100);g.cl10=io.read(b+0x28);g.cl5=io.read(b+0x14);g.dw5=io.read(b+0x894);
+                  for(unsigned n=0;n<4;++n){g.dw2[n]=io.read(b+0x888+0x100*n);g.dw4[n]=io.read(b+0x890+0x100*n);g.dw7[n]=io.read(b+0x89C+0x100*n);}
+                  g.clka=io.read(0x164280);g.en0=io.read(0x46010);g.c0=io.read(0x164284);g.c1=io.read(0x164288);
+                  g.trA=io.read(0x60400);g.trB=io.read(0x61400);g.tpA=io.read(0x60540);g.clkA=io.read(0x46140);g.valid=true;
+                  char l[240];
+                  snprintf(l,sizeof(l),"BOOT bufA=%08x bufB=%08x cl10=%08x cl5=%08x dw5=%08x clka=%08x en0=%08x c=%08x/%08x transA=%08x transB=%08x tpA=%08x clkA=%08x",
+                      g.buf,g.bufB,g.cl10,g.cl5,g.dw5,g.clka,g.en0,g.c0,g.c1,g.trA,g.trB,g.tpA,g.clkA);
+                  vostroDPLine(l);
+                  snprintf(l,sizeof(l),"BOOT dw2=%08x %08x %08x %08x dw4=%08x %08x %08x %08x dw7=%08x %08x %08x %08x",
+                      g.dw2[0],g.dw2[1],g.dw2[2],g.dw2[3],g.dw4[0],g.dw4[1],g.dw4[2],g.dw4[3],g.dw7[0],g.dw7[1],g.dw7[2],g.dw7[3]);
+                  vostroDPLine(l);
+              }""")
+          rep("""   char rl[240];snprintf(rl,sizeof(rl),"G buf=""","""   if(result==0 && vk.gop && vostroGOP.valid && ddi==0) {
+              const uint32_t b=selected.base;const auto &g=vostroGOP;
+              const uint32_t d5=registers.read(b+0x894);registers.write(b+0x694,d5&~0x80000000U);
+              for(unsigned n=0;n<4;++n) {
+               registers.write(b+0x888+0x100*n,(registers.read(b+0x888+0x100*n)&~0xB8FFU)|(g.dw2[n]&0xB8FFU));
+               registers.write(b+0x890+0x100*n,(registers.read(b+0x890+0x100*n)&~0x8003FFFFU)|(g.dw4[n]&0x8003FFFFU));
+               registers.write(b+0x89C+0x100*n,(registers.read(b+0x89C+0x100*n)&~0x7F000000U)|(g.dw7[n]&0x7F000000U));
+              }
+              registers.write(b+0x694,d5|0x80000000U);
+              vostroDPLine("GOP PHY seviyeleri uygulandi (vostrogop)");
+             }
+             char rl[240];snprintf(rl,sizeof(rl),"G buf=""")
           open(path, "w").write(s)
-          print("patched v11")
+          print("patched v13")
           PYEOF
           python3 wex_patch.py wex/WhateverXe/kern_xe.cpp
           ( cd wex && python3 tools/build.py --release --output build/RELEASE )
           K="$(find wex/build/RELEASE -type d -name WhateverXe.kext | head -1)"
           test -n "$K"
-          strings "$K/Contents/MacOS/WhateverXe" | grep -q "vostropll"
+          strings "$K/Contents/MacOS/WhateverXe" | grep -q "vostrogop"
           mkdir -p out && cp -R "$K" out/
       - uses: actions/upload-artifact@v4
         with:
@@ -890,98 +937,98 @@ jobs:
       - name: Paketle
         run: |
           base64 -D > p.tgz <<'B64'
-          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
+          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
           B64
           tar xzf p.tgz
           cp -R kx/WhateverXe.kext kx/RealtekBluetoothFirmware.kext kx/Vostrointosh.app vostro-paket/
