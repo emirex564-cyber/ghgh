@@ -1022,22 +1022,70 @@ jobs:
           		<array>
           			<dict>
           				<key>Comment</key>
-          				<string>Dell Vostro 3520 CS8409 Warlock MLK</string>
+          				<string>Vostro 3520 CS8409 tam: hoparlor+kulaklik+mikrofon</string>
           				<key>Id</key>
           				<integer>7</integer>
           				<key>Path</key>
           				<string>layout7.xml.zlib</string>
+          			</dict>
+          			<dict>
+          				<key>Comment</key>
+          				<string>Vostro 3520 CS8409 sadece hoparlor</string>
+          				<key>Id</key>
+          				<integer>8</integer>
+          				<key>Path</key>
+          				<string>layout8.xml.zlib</string>
+          			</dict>
+          			<dict>
+          				<key>Comment</key>
+          				<string>Vostro 3520 CS8409 sadece mikrofon (tani)</string>
+          				<key>Id</key>
+          				<integer>9</integer>
+          				<key>Path</key>
+          				<string>layout9.xml.zlib</string>
+          			</dict>
+          			<dict>
+          				<key>Comment</key>
+          				<string>Vostro 3520 CS8409 sadece kulaklik</string>
+          				<key>Id</key>
+          				<integer>10</integer>
+          				<key>Path</key>
+          				<string>layout10.xml.zlib</string>
           			</dict>
           		</array>
           		<key>Platforms</key>
           		<array>
           			<dict>
           				<key>Comment</key>
-          				<string>Dell Vostro 3520 CS8409 Warlock MLK</string>
+          				<string>Vostro 3520 CS8409 tam: hoparlor+kulaklik+mikrofon</string>
           				<key>Id</key>
           				<integer>7</integer>
           				<key>Path</key>
           				<string>Platforms7.xml.zlib</string>
+          			</dict>
+          			<dict>
+          				<key>Comment</key>
+          				<string>Vostro 3520 CS8409 sadece hoparlor</string>
+          				<key>Id</key>
+          				<integer>8</integer>
+          				<key>Path</key>
+          				<string>Platforms8.xml.zlib</string>
+          			</dict>
+          			<dict>
+          				<key>Comment</key>
+          				<string>Vostro 3520 CS8409 sadece mikrofon (tani)</string>
+          				<key>Id</key>
+          				<integer>9</integer>
+          				<key>Path</key>
+          				<string>Platforms9.xml.zlib</string>
+          			</dict>
+          			<dict>
+          				<key>Comment</key>
+          				<string>Vostro 3520 CS8409 sadece kulaklik</string>
+          				<key>Id</key>
+          				<integer>10</integer>
+          				<key>Path</key>
+          				<string>Platforms10.xml.zlib</string>
           			</dict>
           		</array>
           	</dict>
@@ -1076,6 +1124,81 @@ jobs:
           			</array>
           			<key>PathMapID</key>
           			<integer>7</integer>
+          		</dict>
+          	</array>
+          </dict>
+          XEOF
+          cat > Resources/CS8409/layout8.xml <<'XEOF'
+          <dict>
+          	<key>LayoutID</key>
+          	<integer>8</integer>
+          	<key>PathMapRef</key>
+          	<array>
+          		<dict>
+          			<key>CodecID</key>
+          			<array>
+          				<integer>269714441</integer>
+          			</array>
+          			<key>Inputs</key>
+          			<array/>
+          			<key>IntSpeaker</key>
+          			<dict/>
+          			<key>Outputs</key>
+          			<array>
+          				<string>IntSpeaker</string>
+          			</array>
+          			<key>PathMapID</key>
+          			<integer>8</integer>
+          		</dict>
+          	</array>
+          </dict>
+          XEOF
+          cat > Resources/CS8409/layout9.xml <<'XEOF'
+          <dict>
+          	<key>LayoutID</key>
+          	<integer>9</integer>
+          	<key>PathMapRef</key>
+          	<array>
+          		<dict>
+          			<key>CodecID</key>
+          			<array>
+          				<integer>269714441</integer>
+          			</array>
+          			<key>Inputs</key>
+          			<array>
+          				<string>Mic</string>
+          			</array>
+          			<key>Mic</key>
+          			<dict/>
+          			<key>Outputs</key>
+          			<array/>
+          			<key>PathMapID</key>
+          			<integer>9</integer>
+          		</dict>
+          	</array>
+          </dict>
+          XEOF
+          cat > Resources/CS8409/layout10.xml <<'XEOF'
+          <dict>
+          	<key>LayoutID</key>
+          	<integer>10</integer>
+          	<key>PathMapRef</key>
+          	<array>
+          		<dict>
+          			<key>CodecID</key>
+          			<array>
+          				<integer>269714441</integer>
+          			</array>
+          			<key>Headphone</key>
+          			<dict/>
+          			<key>Inputs</key>
+          			<array/>
+          			<key>Outputs</key>
+          			<array>
+          				<string>Headphone</string>
+          			</array>
+          			<key>PathMapID</key>
+          			<integer>10</integer>
           		</dict>
           	</array>
           </dict>
@@ -1177,55 +1300,320 @@ jobs:
           	</array>
           </dict>
           XEOF
-          cat > /tmp/pin_entry.plist <<'XEOF'
+          cat > Resources/CS8409/Platforms8.xml <<'XEOF'
+          <dict>
+          	<key>CommonPeripheralDSP</key>
+          	<array>
+          		<dict>
+          			<key>DeviceID</key>
+          			<integer>0</integer>
+          			<key>DeviceType</key>
+          			<string>Headphone</string>
+          		</dict>
+          		<dict>
+          			<key>DeviceID</key>
+          			<integer>0</integer>
+          			<key>DeviceType</key>
+          			<string>Microphone</string>
+          		</dict>
+          	</array>
+          	<key>PathMaps</key>
+          	<array>
+          		<dict>
+          			<key>PathMap</key>
+          			<array>
+          				<array>
+          					<array>
+          						<array>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>44</integer>
+          							</dict>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>10</integer>
+          							</dict>
+          						</array>
+          					</array>
+          				</array>
+          			</array>
+          			<key>PathMapID</key>
+          			<integer>8</integer>
+          		</dict>
+          	</array>
+          </dict>
+          XEOF
+          cat > Resources/CS8409/Platforms9.xml <<'XEOF'
+          <dict>
+          	<key>CommonPeripheralDSP</key>
+          	<array>
+          		<dict>
+          			<key>DeviceID</key>
+          			<integer>0</integer>
+          			<key>DeviceType</key>
+          			<string>Headphone</string>
+          		</dict>
+          		<dict>
+          			<key>DeviceID</key>
+          			<integer>0</integer>
+          			<key>DeviceType</key>
+          			<string>Microphone</string>
+          		</dict>
+          	</array>
+          	<key>PathMaps</key>
+          	<array>
+          		<dict>
+          			<key>PathMap</key>
+          			<array>
+          				<array>
+          					<array>
+          						<array>
+          							<dict>
+          								<key>Amp</key>
+          								<dict>
+          									<key>Channels</key>
+          									<array>
+          										<dict>
+          											<key>Bind</key>
+          											<integer>1</integer>
+          											<key>Channel</key>
+          											<integer>1</integer>
+          										</dict>
+          										<dict>
+          											<key>Bind</key>
+          											<integer>2</integer>
+          											<key>Channel</key>
+          											<integer>2</integer>
+          										</dict>
+          									</array>
+          									<key>MuteInputAmp</key>
+          									<true/>
+          									<key>PublishMute</key>
+          									<true/>
+          									<key>PublishVolume</key>
+          									<true/>
+          									<key>VolumeInputAmp</key>
+          									<true/>
+          								</dict>
+          								<key>NodeID</key>
+          								<integer>34</integer>
+          							</dict>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>68</integer>
+          							</dict>
+          						</array>
+          					</array>
+          				</array>
+          			</array>
+          			<key>PathMapID</key>
+          			<integer>9</integer>
+          		</dict>
+          	</array>
+          </dict>
+          XEOF
+          cat > Resources/CS8409/Platforms10.xml <<'XEOF'
+          <dict>
+          	<key>CommonPeripheralDSP</key>
+          	<array>
+          		<dict>
+          			<key>DeviceID</key>
+          			<integer>0</integer>
+          			<key>DeviceType</key>
+          			<string>Headphone</string>
+          		</dict>
+          		<dict>
+          			<key>DeviceID</key>
+          			<integer>0</integer>
+          			<key>DeviceType</key>
+          			<string>Microphone</string>
+          		</dict>
+          	</array>
+          	<key>PathMaps</key>
+          	<array>
+          		<dict>
+          			<key>PathMap</key>
+          			<array>
+          				<array>
+          					<array>
+          						<array>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>36</integer>
+          							</dict>
+          							<dict>
+          								<key>NodeID</key>
+          								<integer>2</integer>
+          							</dict>
+          						</array>
+          					</array>
+          				</array>
+          			</array>
+          			<key>PathMapID</key>
+          			<integer>10</integer>
+          		</dict>
+          	</array>
+          </dict>
+          XEOF
+          cat > /tmp/pin_entries.plist <<'XEOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
-          <dict>
-          	<key>AFGLowPowerState</key>
-          	<data>
-          	AAAAAA==
-          	</data>
-          	<key>Codec</key>
-          	<string>Dell Vostro 3520 CS8409 (Warlock MLK)</string>
-          	<key>CodecID</key>
-          	<integer>269714441</integer>
-          	<key>ConfigData</key>
-          	<data>
-          	ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIEdAqABHUA
-          	GQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1ADoEdAgABHUAAwR0
-          	gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQoPwR1AAgEdIBcBHUACQR0ACME
-          	dQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBoBHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDF
-          	BHQAAAR1AMAEdAAAABcWPwAXFyIAFxUCAsccEALHHQACxx4XAscfkAJHHCACRx0gAkce
-          	IgJHHwQERxwwBEcdAARHHqYERx+QA0cc8ANHHREDRx4RA0cfQQ==
-          	</data>
-          	<key>FuncGroup</key>
-          	<integer>1</integer>
-          	<key>LayoutID</key>
-          	<integer>7</integer>
-          	<key>WakeConfigData</key>
-          	<data>
-          	ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIEdAqABHUA
-          	GQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1ADoEdAgABHUAAwR0
-          	gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQoPwR1AAgEdIBcBHUACQR0ACME
-          	dQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBoBHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDF
-          	BHQAAAR1AMAEdAAAABcWPwAXFyIAFxUC
-          	</data>
-          	<key>WakeVerbReinit</key>
-          	<true/>
-          </dict>
+          <array>
+          	<dict>
+          		<key>AFGLowPowerState</key>
+          		<data>
+          		AAAAAA==
+          		</data>
+          		<key>Codec</key>
+          		<string>Dell Vostro 3520 CS8409 (Warlock MLK)</string>
+          		<key>CodecID</key>
+          		<integer>269714441</integer>
+          		<key>ConfigData</key>
+          		<data>
+          		ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIE
+          		dAqABHUAGQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1
+          		ADoEdAgABHUAAwR0gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQo
+          		PwR1AAgEdIBcBHUACQR0ACMEdQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBo
+          		BHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDFBHQAAAR1AMAEdAAAABcWPwAXFyIA
+          		FxUCAsccEALHHQACxx4XAscfkAJHHCACRx0gAkceIgJHHwQERxwwBEcdAARH
+          		HqYERx+QA0cc8ANHHREDRx4RA0cfQQ==
+          		</data>
+          		<key>FuncGroup</key>
+          		<integer>1</integer>
+          		<key>LayoutID</key>
+          		<integer>7</integer>
+          		<key>WakeConfigData</key>
+          		<data>
+          		ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIE
+          		dAqABHUAGQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1
+          		ADoEdAgABHUAAwR0gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQo
+          		PwR1AAgEdIBcBHUACQR0ACMEdQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBo
+          		BHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDFBHQAAAR1AMAEdAAAABcWPwAXFyIA
+          		FxUC
+          		</data>
+          		<key>WakeVerbReinit</key>
+          		<true/>
+          	</dict>
+          	<dict>
+          		<key>AFGLowPowerState</key>
+          		<data>
+          		AAAAAA==
+          		</data>
+          		<key>Codec</key>
+          		<string>Dell Vostro 3520 CS8409 (Warlock MLK)</string>
+          		<key>CodecID</key>
+          		<integer>269714441</integer>
+          		<key>ConfigData</key>
+          		<data>
+          		ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIE
+          		dAqABHUAGQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1
+          		ADoEdAgABHUAAwR0gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQo
+          		PwR1AAgEdIBcBHUACQR0ACMEdQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBo
+          		BHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDFBHQAAAR1AMAEdAAAABcWPwAXFyIA
+          		FxUCAsccEALHHQACxx4XAscfkAJHHCACRx0gAkceIgJHHwQERxwwBEcdAARH
+          		HqYERx+QA0cc8ANHHREDRx4RA0cfQQ==
+          		</data>
+          		<key>FuncGroup</key>
+          		<integer>1</integer>
+          		<key>LayoutID</key>
+          		<integer>8</integer>
+          		<key>WakeConfigData</key>
+          		<data>
+          		ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIE
+          		dAqABHUAGQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1
+          		ADoEdAgABHUAAwR0gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQo
+          		PwR1AAgEdIBcBHUACQR0ACMEdQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBo
+          		BHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDFBHQAAAR1AMAEdAAAABcWPwAXFyIA
+          		FxUC
+          		</data>
+          		<key>WakeVerbReinit</key>
+          		<true/>
+          	</dict>
+          	<dict>
+          		<key>AFGLowPowerState</key>
+          		<data>
+          		AAAAAA==
+          		</data>
+          		<key>Codec</key>
+          		<string>Dell Vostro 3520 CS8409 (Warlock MLK)</string>
+          		<key>CodecID</key>
+          		<integer>269714441</integer>
+          		<key>ConfigData</key>
+          		<data>
+          		ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIE
+          		dAqABHUAGQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1
+          		ADoEdAgABHUAAwR0gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQo
+          		PwR1AAgEdIBcBHUACQR0ACMEdQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBo
+          		BHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDFBHQAAAR1AMAEdAAAABcWPwAXFyIA
+          		FxUCAsccEALHHQACxx4XAscfkAJHHCACRx0gAkceIgJHHwQERxwwBEcdAARH
+          		HqYERx+QA0cc8ANHHREDRx4RA0cfQQ==
+          		</data>
+          		<key>FuncGroup</key>
+          		<integer>1</integer>
+          		<key>LayoutID</key>
+          		<integer>9</integer>
+          		<key>WakeConfigData</key>
+          		<data>
+          		ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIE
+          		dAqABHUAGQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1
+          		ADoEdAgABHUAAwR0gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQo
+          		PwR1AAgEdIBcBHUACQR0ACMEdQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBo
+          		BHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDFBHQAAAR1AMAEdAAAABcWPwAXFyIA
+          		FxUC
+          		</data>
+          		<key>WakeVerbReinit</key>
+          		<true/>
+          	</dict>
+          	<dict>
+          		<key>AFGLowPowerState</key>
+          		<data>
+          		AAAAAA==
+          		</data>
+          		<key>Codec</key>
+          		<string>Dell Vostro 3520 CS8409 (Warlock MLK)</string>
+          		<key>CodecID</key>
+          		<integer>269714441</integer>
+          		<key>ConfigData</key>
+          		<data>
+          		ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIE
+          		dAqABHUAGQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1
+          		ADoEdAgABHUAAwR0gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQo
+          		PwR1AAgEdIBcBHUACQR0ACMEdQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBo
+          		BHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDFBHQAAAR1AMAEdAAAABcWPwAXFyIA
+          		FxUCAsccEALHHQACxx4XAscfkAJHHCACRx0gAkceIgJHHwQERxwwBEcdAARH
+          		HqYERx+QA0cc8ANHHREDRx4RA0cfQQ==
+          		</data>
+          		<key>FuncGroup</key>
+          		<integer>1</integer>
+          		<key>LayoutID</key>
+          		<integer>10</integer>
+          		<key>WakeConfigData</key>
+          		<data>
+          		ABcYGAR3AwEEdQACBHQAgAR1AFsEdAIABHUAAAR0sAgEdQABBHQAAgR1AAIE
+          		dAqABHUAGQR0CAAEdQAaBHQIIAR1ACkEdAgABHUAKgR0KAAEdQA5BHQIAAR1
+          		ADoEdAgABHUAAwR0gAAEdQAEBHQo/wR1AAUEdABiBHUABgR0gB8EdQAHBHQo
+          		PwR1AAgEdIBcBHUACQR0ACMEdQAKBHQAAAR1AAEEdABiBHUAAAR0kAgEdQBo
+          		BHQAAAR1AIIEdPwDBHUAwAR0mZkEdQDFBHQAAAR1AMAEdAAAABcWPwAXFyIA
+          		FxUC
+          		</data>
+          		<key>WakeVerbReinit</key>
+          		<true/>
+          	</dict>
+          </array>
           </plist>
           XEOF
           python3 - <<'PYEOF'
           import plistlib
           p='Resources/PinConfigs.kext/Contents/Info.plist'
           d=plistlib.load(open(p,'rb'))
-          e=plistlib.load(open('/tmp/pin_entry.plist','rb'))
+          es=plistlib.load(open('/tmp/pin_entries.plist','rb'))
           lst=d['IOKitPersonalities']['as.vit9696.AppleALC']['HDAConfigDefault']
-          lst[:]=[x for x in lst if not (x.get('CodecID')==e['CodecID'] and x.get('LayoutID')==e['LayoutID'])]
-          lst.append(e)
+          ids={(e['CodecID'],e['LayoutID']) for e in es}
+          lst[:]=[x for x in lst if (x.get('CodecID'),x.get('LayoutID')) not in ids]
+          lst.extend(es)
           plistlib.dump(d,open(p,'wb'))
-          print('pinconfig eklendi', len(lst))
+          print('pinconfig eklendi', len(es))
           PYEOF
       - name: Derle
         working-directory: alc
