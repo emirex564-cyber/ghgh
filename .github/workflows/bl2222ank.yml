@@ -49,6 +49,30 @@ jobs:
           open(p,'w').write(t); print('konum LPIB yamasi')
           PYEOF
           grep -n "Vostro: LPIB" CS8409Audio.cpp
+      - name: Vostro yamasi 3 - denetleyiciyi her erisimde D0 gucune al
+        run: |
+          cd src
+          python3 - <<'PYEOF'
+          p='CS8409Audio.cpp'; t=open(p).read()
+          a='    if (!bar) {\n        pci->setMemoryEnable(true);'
+          assert t.count(a)==1, 'bar anchor'
+          b=('    {   /* Vostro: hicbir surucu bagli degilken macOS denetleyiciyi D3 uykusunda birakabilir; MMIO o halde sistemi kilitler */\n'
+             '        UInt8 pmOff = 0;\n'
+             '        if (pci->findPCICapability(kIOPCIPowerManagementCapability, &pmOff) && pmOff) {\n'
+             '            UInt16 pmcsr = pci->configRead16(pmOff + 4);\n'
+             '            if (pmcsr & 3) {\n'
+             '                pci->configWrite16(pmOff + 4, (UInt16)(pmcsr & ~3));\n'
+             '                IOSleep(20);\n'
+             '                IOLog("CS8409Audio: PMCSR 0x%04x -> D0 (0x%04x)\\n", pmcsr, pci->configRead16(pmOff + 4));\n'
+             '            }\n'
+             '        }\n'
+             '        pci->setMemoryEnable(true);\n'
+             '        pci->setBusMasterEnable(true);\n'
+             '    }\n')
+          t=t.replace(a, b+a)
+          open(p,'w').write(t); print('D0 guc yamasi')
+          PYEOF
+          grep -n "PMCSR" CS8409Audio.cpp
       - name: Derle
         run: |
           cd src
