@@ -759,13 +759,16 @@ jobs:
           # L = K + 32 KB tampon (85 ms, damga 4x daha sik) -> ONERILEN ; M = K + 64 KB tampon
           cp -R vhdaK vhdaL; python3 /tmp/vostro_buf2.py vhdaL/tranc 32768
           cp -R vhdaK vhdaM; python3 /tmp/vostro_buf2.py vhdaM/tranc 65536
-          for V in L M K C; do
+          echo 'IyBWb3N0cm86IHNlcyBzYWF0aSBpbGUgc2lzdGVtIHNhYXRpIChUU0MpIGFyYXNpbmRha2kgZmFya2kgb2xjIC0+IGthcmEga3V0dXlhICJPUkFOICt4IHBwbSIgKGhlciB+MzIgdGFtcG9uKQppbXBvcnQgc3lzCnA9c3lzLmFyZ3ZbMV0rJy9Wb29kb29IREFEZXZpY2UuY3BwJzsgdD1vcGVuKHApLnJlYWQoKQphPSdcdFx0XHRub3cgPSBzUGxsVHNbY2ldO1xuJwphc3NlcnQgdC5jb3VudChhKT09MSwgJ29uY2Ugdm9zdHJvX3BsbC5weScKYWRkPXInJycJCQl7CgkJCQlzdGF0aWMgVUludDY0IHNSZWZUc1s2NF07IHN0YXRpYyBVSW50MzIgc1JlZk5bNjRdOwoJCQkJaWYgKGdWSXJxV3JhcHNbY2ldIDw9IDEpIHsgc1JlZlRzW2NpXSA9IG5vdzsgc1JlZk5bY2ldID0gMDsgfQoJCQkJZWxzZSBpZiAoKytzUmVmTltjaV0gPj0gMzIpIHsKCQkJCQlVSW50NjQgZWwgPSBub3cgLSBzUmVmVHNbY2ldLCBlbE5zID0gMCwgcGVyTnMgPSAwOwoJCQkJCWFic29sdXRldGltZV90b19uYW5vc2Vjb25kcyhlbCwgJmVsTnMpOyBhYnNvbHV0ZXRpbWVfdG9fbmFub3NlY29uZHMocGVyLCAmcGVyTnMpOwoJCQkJCWlmIChwZXJOcykgewoJCQkJCQlTSW50NjQgcHBtID0gKChTSW50NjQpZWxOcyAtIChTSW50NjQpKHBlck5zICogc1JlZk5bY2ldKSkgKiAxMDAwMDAwTEwgLyAoU0ludDY0KShwZXJOcyAqIHNSZWZOW2NpXSk7CgkJCQkJCXZvc3Ryb0V2KCJPUkFOIGNoJWQgJWxsZCBwcG0gKCV1IHRhbXBvbiAlbGx1bXMpIiwgY2ksIChsb25nIGxvbmcpcHBtLCBzUmVmTltjaV0sICh1bnNpZ25lZCBsb25nIGxvbmcpKGVsTnMgLyAxMDAwMDAwVUxMKSk7CgkJCQkJfQoJCQkJCXNSZWZUc1tjaV0gPSBub3c7IHNSZWZOW2NpXSA9IDA7CgkJCQl9CgkJCX0KJycnCnQ9dC5yZXBsYWNlKGEsIGFkZCthKQpvcGVuKHAsJ3cnKS53cml0ZSh0KTsgcHJpbnQoJ1Zvc3RybyBwcG0gb2xjdW11IGVrbGVuZGknKQo=' | base64 -d > /tmp/vostro_ppm.py
+          # N = K + saat farki olcumu (ppm) -> TANI
+          cp -R vhdaK vhdaN; python3 /tmp/vostro_ppm.py vhdaN/tranc
+          for V in N L M K C; do
             ( cd vhda$V/tranc && xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -8 )
             K="$(find vhda$V/tranc/build -type d -name VoodooHDA.kext -path '*Release*' | head -1)"
             if [ -n "$K" ]; then cp -R "$K" "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext"; else echo "UYARI: $V derlenemedi"; fi
           done
           ls -d "$GITHUB_WORKSPACE"/out/VoodooHDA-*.kext
-          for V in L M K C; do [ -d "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" ] && { cp -R "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" "$GITHUB_WORKSPACE/out/VoodooHDA.kext"; break; }; done
+          for V in N K L C; do [ -d "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" ] && { cp -R "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" "$GITHUB_WORKSPACE/out/VoodooHDA.kext"; break; }; done
           test -d "$GITHUB_WORKSPACE/out/VoodooHDA.kext"
           clang -arch x86_64 vhda/tranc/getdump.c -I vhda/tranc -o "$GITHUB_WORKSPACE/out/vhda-getdump" -framework IOKit -framework CoreFoundation -Wno-deprecated-declarations || echo "getdump derlenemedi"
           ls "$GITHUB_WORKSPACE/out"
