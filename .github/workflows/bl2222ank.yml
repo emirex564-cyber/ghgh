@@ -1725,7 +1725,7 @@ jobs:
           v['IOPCIClassMatch']='0x04030000&0xffff0000'
           v['IOProbeScore']=100000
           v.pop('LayoutId',None)
-          v['AllowMSI']=True
+          v['AllowMSI']=False
           v['InhibitCache']=True
           v['VoodooHDAVerboseLevel']=1
           plistlib.dump(d,open(p,'wb'))
@@ -1741,30 +1741,21 @@ jobs:
           a2='\taudioCommit(funcGroup);\n//\tdumpMsg("HP switch init...\\n");'
           assert s.count(a2)==1, 'commit anchor yok'
           s=s.replace(a2,'\taudioCommit(funcGroup);\n\tIOSleep(100);\n\tpowerup(funcGroup);\n\tapplyAppleALCWakeVerbs(funcGroup);\n\taudioCommit(funcGroup);\n\tlogMsg("Vostro CS8409: wake sirasi acilista tekrarlandi\\n");\n//\tdumpMsg("HP switch init...\\n");')
-          # Kapak kapat/ac (suspend+resume) sesi calistiriyor -> acilistan ~5 sn sonra bir kez yazilimla ayni sirayi yap
-          p2='vhda/tranc/VoodooHDADevice.cpp'; t=open(p2).read()
-          a3='\tif (device->mVerbose >= 3)\n\t\tdevice->logMsg("total interrupts:'
-          assert t.count(a3)==1, 'timer anchor yok'
-          ins=('\tstatic bool vostroWakeDone = false;\n'
-               '\tif (!vostroWakeDone) {\n'
-               '\t\tvostroWakeDone = true;\n'
-               '\t\tIOLog("VoodooHDA Vostro: acilis sonrasi yazilim uyu/uyan basliyor\\n");\n'
-               '\t\tbool sOk = device->suspend();\n'
-               '\t\tIOSleep(300);\n'
-               '\t\tbool rOk = device->resume();\n'
-               '\t\tIOLog("VoodooHDA Vostro: yazilim uyu/uyan bitti suspend=%d resume=%d\\n", sOk, rOk);\n'
-               '\t}\n')
-          t=t.replace(a3, ins+a3)
-          open(p2,'w').write(t)
-          open(p,'w').write(s); print('dugum siniri 250 + acilis wake sirasi + 5sn yazilim uyu/uyan')
+          open(p,'w').write(s); print('dugum siniri 250 + acilis wake sirasi')
           PYEOF
-          echo 'IyBWb3N0cm86IHNlcyBzYWF0aW5pIGtlc21lIHllcmluZSAyIG1zJ2xpayBTRExQSUIgeW9rbGFtYXNpeWxhIGlsZXJsZXQgKElzb1Rvb05ldyAvIGtlc2lsbWUgY296dW11KQppbXBvcnQgc3lzCnA9c3lzLmFyZ3ZbMV0rJy9Wb29kb29IREFEZXZpY2UuY3BwJzsgdD1vcGVuKHApLnJlYWQoKQojIDEpIGtlc21lIHlvbHVuZGEgYW5hbG9nIGthbmFsbGFyIGljaW4gdGltZXN0YW1wIGFsbWEgKHlva2xheWljaSBhbGFjYWspCmE9J1x0ZW5naW5lLT50YWtlVGltZVN0YW1wKHRydWUsIHJlaW50ZXJwcmV0X2Nhc3Q8QWJzb2x1dGVUaW1lKj4oJm1JbnRyVGltZVN0YW1wKSk7XG59Jwphc3NlcnQgdC5jb3VudChhKT09MSwgJ2lycSB0cyBhbmNob3InCnQ9dC5yZXBsYWNlKGEsJ1x0aWYgKGVuZ2luZS0+bUNoYW5uZWwgJiYgIShlbmdpbmUtPm1DaGFubmVsLT5wY21EZXZpY2UgJiYgZW5naW5lLT5tQ2hhbm5lbC0+cGNtRGV2aWNlLT5kaWdpdGFsID49IDIpKVxuXHRcdHJldHVybjsgLyogVm9zdHJvOiBhbmFsb2cga2FuYWwgc2FhdGkgeW9rbGF5aWNpZGFuICovXG4nK2EpCnQ9dC5yZXBsYWNlKCcjaW5jbHVkZSAiTGljZW5zZS5oIlxuJywnI2luY2x1ZGUgIkxpY2Vuc2UuaCJcbiNpbmNsdWRlIDxrZXJuL2Nsb2NrLmg+XG4nLDEpCiMgMikgemFtYW5sYXlpY2lkYSB5b2tsYXlpY2kKYj0nXHRzb3VyY2UtPnNldFRpbWVvdXRNUyhrVm9vZG9vSERBVGltZXJJZGxlSW50ZXJ2YWxNcyk7Jwphc3NlcnQgdC5jb3VudChiKT09MSwgJ3RpbWVyIGFuY2hvcicKcG9sbD1yJycnCXsKCQlzdGF0aWMgVUludDMyIHZMYXN0WzY0XTsKCQlzdGF0aWMgYm9vbCB2SW5pdCA9IGZhbHNlOwoJCWlmICghdkluaXQpIHsgZm9yIChpbnQgayA9IDA7IGsgPCA2NDsgaysrKSB2TGFzdFtrXSA9IDB4RkZGRkZGRkY7IHZJbml0ID0gdHJ1ZTsgfQoJCWJvb2wgYW55UnVuID0gZmFsc2U7CgkJZm9yIChpbnQgaSA9IDA7IGkgPCBkZXZpY2UtPm1OdW1DaGFubmVscyAmJiBpIDwgNjQ7IGkrKykgewoJCQlDaGFubmVsICpjaCA9ICZkZXZpY2UtPm1DaGFubmVsc1tpXTsKCQkJaWYgKCEoY2gtPmZsYWdzICYgSERBQ19DSE5fUlVOTklORykgfHwgKGNoLT5wY21EZXZpY2UgJiYgY2gtPnBjbURldmljZS0+ZGlnaXRhbCA+PSAyKSkgewoJCQkJdkxhc3RbaV0gPSAweEZGRkZGRkZGOwoJCQkJY29udGludWU7CgkJCX0KCQkJYW55UnVuID0gdHJ1ZTsKCQkJVUludDMyIHBvcyA9IChVSW50MzIpZGV2aWNlLT5jaGFubmVsR2V0UG9zaXRpb24oY2gpOwoJCQlpZiAodkxhc3RbaV0gIT0gMHhGRkZGRkZGRiAmJiBwb3MgPCB2TGFzdFtpXSkgewoJCQkJVm9vZG9vSERBRW5naW5lICplID0gZGV2aWNlLT5sb29rdXBFbmdpbmUoaSk7CgkJCQlpZiAoZSkgewoJCQkJCVVJbnQ2NCBub3cgPSBtYWNoX2Fic29sdXRlX3RpbWUoKTsKCQkJCQljb25zdCBJT0F1ZGlvU2FtcGxlUmF0ZSAqc3IgPSBlLT5nZXRTYW1wbGVSYXRlKCk7CgkJCQkJVUludDY0IHJhdGUgPSAoc3IgJiYgc3ItPndob2xlKSA/IHNyLT53aG9sZSA6IDQ4MDAwOwoJCQkJCVVJbnQ2NCBicGYgPSBlLT5tU2FtcGxlU2l6ZSA/IGUtPm1TYW1wbGVTaXplIDogNDsKCQkJCQlVSW50NjQgbnMgPSAoKFVJbnQ2NClwb3MgKiAxMDAwMDAwMDAwVUxMKSAvIChyYXRlICogYnBmKTsKCQkJCQlVSW50NjQgZGVsdGEgPSAwOwoJCQkJCW5hbm9zZWNvbmRzX3RvX2Fic29sdXRldGltZShucywgJmRlbHRhKTsKCQkJCQlVSW50NjQgdHMgPSAoZGVsdGEgPCBub3cpID8gKG5vdyAtIGRlbHRhKSA6IG5vdzsKCQkJCQllLT50YWtlVGltZVN0YW1wKHRydWUsIHJlaW50ZXJwcmV0X2Nhc3Q8QWJzb2x1dGVUaW1lKj4oJnRzKSk7CgkJCQl9CgkJCX0KCQkJdkxhc3RbaV0gPSBwb3M7CgkJfQoJCXNvdXJjZS0+c2V0VGltZW91dE1TKGFueVJ1biA/IDIgOiAyMCk7Cgl9CicnJwp0PXQucmVwbGFjZShiLCBwb2xsKQpvcGVuKHAsJ3cnKS53cml0ZSh0KQpwcmludCgnVm9zdHJvIHNhYXQgeW9rbGF5aWNpIGVrbGVuZGknKQo=' | base64 -d > /tmp/vostro_clock.py
-          python3 /tmp/vostro_clock.py vhda/tranc
-          cd vhda/tranc
-          xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -30
-          K="$(find build -type d -name VoodooHDA.kext -path '*Release*' | head -1)"
-          test -n "$K"
-          cp -R "$K" "$GITHUB_WORKSPACE/out/"
+          echo 'IyBWb3N0cm86IHNlcyBzYWF0aW5pIGtlc21lIHllcmluZSAyIG1zJ2xpayBTRExQSUIgeW9rbGFtYXNpeWxhIGlsZXJsZXQgKElzb1Rvb05ldyAvIGtlc2lsbWUgY296dW11KQppbXBvcnQgc3lzCnA9c3lzLmFyZ3ZbMV0rJy9Wb29kb29IREFEZXZpY2UuY3BwJzsgdD1vcGVuKHApLnJlYWQoKQojIDEpIGtlc21lIHlvbHVuZGEgYW5hbG9nIGthbmFsbGFyIGljaW4gdGltZXN0YW1wIGFsbWEgKHlva2xheWljaSBhbGFjYWspCmE9J1x0ZW5naW5lLT50YWtlVGltZVN0YW1wKHRydWUsIHJlaW50ZXJwcmV0X2Nhc3Q8QWJzb2x1dGVUaW1lKj4oJm1JbnRyVGltZVN0YW1wKSk7XG59Jwphc3NlcnQgdC5jb3VudChhKT09MSwgJ2lycSB0cyBhbmNob3InCnQ9dC5yZXBsYWNlKGEsJ1x0aWYgKGVuZ2luZS0+bUNoYW5uZWwgJiYgIShlbmdpbmUtPm1DaGFubmVsLT5wY21EZXZpY2UgJiYgZW5naW5lLT5tQ2hhbm5lbC0+cGNtRGV2aWNlLT5kaWdpdGFsID49IDIpKVxuXHRcdHJldHVybjsgLyogVm9zdHJvOiBhbmFsb2cga2FuYWwgc2FhdGkgeW9rbGF5aWNpZGFuICovXG4nK2EpCnQ9dC5yZXBsYWNlKCcjaW5jbHVkZSAiTGljZW5zZS5oIlxuJywnI2luY2x1ZGUgIkxpY2Vuc2UuaCJcbiNpbmNsdWRlIDxrZXJuL2Nsb2NrLmg+XG4nLDEpCiMgMikgemFtYW5sYXlpY2lkYSB5b2tsYXlpY2kKYj0nXHRzb3VyY2UtPnNldFRpbWVvdXRNUyhrVm9vZG9vSERBVGltZXJJZGxlSW50ZXJ2YWxNcyk7Jwphc3NlcnQgdC5jb3VudChiKT09MSwgJ3RpbWVyIGFuY2hvcicKcG9sbD1yJycnCXsKCQlzdGF0aWMgVUludDMyIHZMYXN0WzY0XTsKCQlzdGF0aWMgYm9vbCB2SW5pdCA9IGZhbHNlOwoJCWlmICghdkluaXQpIHsgZm9yIChpbnQgayA9IDA7IGsgPCA2NDsgaysrKSB2TGFzdFtrXSA9IDB4RkZGRkZGRkY7IHZJbml0ID0gdHJ1ZTsgfQoJCWJvb2wgYW55UnVuID0gZmFsc2U7CgkJZm9yIChpbnQgaSA9IDA7IGkgPCBkZXZpY2UtPm1OdW1DaGFubmVscyAmJiBpIDwgNjQ7IGkrKykgewoJCQlDaGFubmVsICpjaCA9ICZkZXZpY2UtPm1DaGFubmVsc1tpXTsKCQkJaWYgKCEoY2gtPmZsYWdzICYgSERBQ19DSE5fUlVOTklORykgfHwgKGNoLT5wY21EZXZpY2UgJiYgY2gtPnBjbURldmljZS0+ZGlnaXRhbCA+PSAyKSkgewoJCQkJdkxhc3RbaV0gPSAweEZGRkZGRkZGOwoJCQkJY29udGludWU7CgkJCX0KCQkJYW55UnVuID0gdHJ1ZTsKCQkJVUludDMyIHBvcyA9IChVSW50MzIpZGV2aWNlLT5jaGFubmVsR2V0UG9zaXRpb24oY2gpOwoJCQlpZiAodkxhc3RbaV0gIT0gMHhGRkZGRkZGRiAmJiBwb3MgPCB2TGFzdFtpXSkgewoJCQkJVm9vZG9vSERBRW5naW5lICplID0gZGV2aWNlLT5sb29rdXBFbmdpbmUoaSk7CgkJCQlpZiAoZSkgewoJCQkJCVVJbnQ2NCBub3cgPSBtYWNoX2Fic29sdXRlX3RpbWUoKTsKCQkJCQljb25zdCBJT0F1ZGlvU2FtcGxlUmF0ZSAqc3IgPSBlLT5nZXRTYW1wbGVSYXRlKCk7CgkJCQkJVUludDY0IHJhdGUgPSAoc3IgJiYgc3ItPndob2xlKSA/IHNyLT53aG9sZSA6IDQ4MDAwOwoJCQkJCVVJbnQ2NCBicGYgPSBlLT5tU2FtcGxlU2l6ZSA/IGUtPm1TYW1wbGVTaXplIDogNDsKCQkJCQlVSW50NjQgbnMgPSAoKFVJbnQ2NClwb3MgKiAxMDAwMDAwMDAwVUxMKSAvIChyYXRlICogYnBmKTsKCQkJCQlVSW50NjQgZGVsdGEgPSAwOwoJCQkJCW5hbm9zZWNvbmRzX3RvX2Fic29sdXRldGltZShucywgJmRlbHRhKTsKCQkJCQlVSW50NjQgdHMgPSAoZGVsdGEgPCBub3cpID8gKG5vdyAtIGRlbHRhKSA6IG5vdzsKCQkJCQllLT50YWtlVGltZVN0YW1wKHRydWUsIHJlaW50ZXJwcmV0X2Nhc3Q8QWJzb2x1dGVUaW1lKj4oJnRzKSk7CgkJCQl9CgkJCX0KCQkJdkxhc3RbaV0gPSBwb3M7CgkJfQoJCXNvdXJjZS0+c2V0VGltZW91dE1TKGFueVJ1biA/IDIgOiAyMCk7Cgl9CicnJwp0PXQucmVwbGFjZShiLCBwb2xsKQpjPSdcdG1UaW1lclNvdXJjZS0+c2V0VGltZW91dE1TKDUwMDApOycKYXNzZXJ0IHQuY291bnQoYyk9PTEsICdpbGsgdGltZXInCnQ9dC5yZXBsYWNlKGMsJ1x0bVRpbWVyU291cmNlLT5zZXRUaW1lb3V0TVMoMjApOyAvKiBWb3N0cm86IHlva2xheWljaSBoZW1lbiBiYXNsYXNpbiAqLycpCm9wZW4ocCwndycpLndyaXRlKHQpCnByaW50KCdWb3N0cm8gc2FhdCB5b2tsYXlpY2kgZWtsZW5kaScpCg==' | base64 -d > /tmp/vostro_clock.py
+          echo 'IyBWb3N0cm86IGFjaWxpc3RhbiB+NSBzbiBzb25yYSBiaXIga2V6IHlhemlsaW1sYSB1eXUvdXlhbiAoa2FwYWsga2FwYXQvYWMgZXNkZWdlcmkpCmltcG9ydCBzeXMKcD1zeXMuYXJndlsxXSsnL1Zvb2Rvb0hEQURldmljZS5jcHAnOyB0PW9wZW4ocCkucmVhZCgpCmEzPSdcdGlmIChkZXZpY2UtPm1WZXJib3NlID49IDMpXG5cdFx0ZGV2aWNlLT5sb2dNc2coInRvdGFsIGludGVycnVwdHM6Jwphc3NlcnQgdC5jb3VudChhMyk9PTEsICd0aW1lciBhbmNob3IgeW9rJwppbnM9KCdcdHN0YXRpYyBib29sIHZvc3Ryb1dha2VEb25lID0gZmFsc2U7XG4nCiAgICAgJ1x0aWYgKCF2b3N0cm9XYWtlRG9uZSkge1xuJwogICAgICdcdFx0dm9zdHJvV2FrZURvbmUgPSB0cnVlO1xuJwogICAgICdcdFx0SU9Mb2coIlZvb2Rvb0hEQSBWb3N0cm86IGFjaWxpcyBzb25yYXNpIHlhemlsaW0gdXl1L3V5YW4gYmFzbGl5b3JcXG4iKTtcbicKICAgICAnXHRcdGJvb2wgc09rID0gZGV2aWNlLT5zdXNwZW5kKCk7XG4nCiAgICAgJ1x0XHRJT1NsZWVwKDMwMCk7XG4nCiAgICAgJ1x0XHRib29sIHJPayA9IGRldmljZS0+cmVzdW1lKCk7XG4nCiAgICAgJ1x0XHRJT0xvZygiVm9vZG9vSERBIFZvc3RybzogeWF6aWxpbSB1eXUvdXlhbiBiaXR0aSBzdXNwZW5kPSVkIHJlc3VtZT0lZFxcbiIsIHNPaywgck9rKTtcbicKICAgICAnXHR9XG4nKQp0PXQucmVwbGFjZShhMywgaW5zK2EzKQpvcGVuKHAsJ3cnKS53cml0ZSh0KQpwcmludCgnVm9zdHJvIDVzbiB1eXUvdXlhbiBla2xlbmRpJykK' | base64 -d > /tmp/vostro_timerwake.py
+          # Varyantlar: A=sadece acilis wake sirasi, B=A+zamanlayicili ses saati, C=A+5sn yazilim uyu/uyan
+          cp -R vhda vhdaA; cp -R vhda vhdaB; cp -R vhda vhdaC
+          python3 /tmp/vostro_clock.py vhdaB/tranc
+          python3 /tmp/vostro_timerwake.py vhdaC/tranc
+          for V in A B C; do
+            ( cd vhda$V/tranc && xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -8 )
+            K="$(find vhda$V/tranc/build -type d -name VoodooHDA.kext -path '*Release*' | head -1)"
+            test -n "$K"
+            cp -R "$K" "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext"
+          done
+          cp -R "$GITHUB_WORKSPACE/out/VoodooHDA-B.kext" "$GITHUB_WORKSPACE/out/VoodooHDA.kext"
           ls "$GITHUB_WORKSPACE/out"
       - uses: actions/upload-artifact@v4
         with:
@@ -1922,6 +1913,7 @@ jobs:
           tar xzf p.tgz
           cp -R kx/WhateverXe.kext kx/RealtekBluetoothFirmware.kext kx/Vostrointosh.app kx/alc-verb kx/AppleALC.kext vostro-paket/
           [ -d kx/VoodooHDA.kext ] && cp -R kx/VoodooHDA.kext vostro-paket/ || echo 'VoodooHDA yok'
+          cp -R kx/VoodooHDA-*.kext vostro-paket/ 2>/dev/null || true
           chmod 755 vostro-paket/*.sh vostro-paket/*.command vostro-paket/Vostrointosh.app/Contents/MacOS/Vostrointosh vostro-paket/alc-verb
           xattr -cr vostro-paket || true
           ditto -c -k --keepParent vostro-paket vostro-paket.zip
