@@ -1,7 +1,6 @@
-# Vostro 3520 - CS8409Audio (nwrafael) derlemesi: Dell "Warlock MLK" CS8409 icin ozel ses surucusu
-# Kullanim: repo > .github/workflows/cs8409audio.yml > Actions > CS8409Audio Vostro > Run workflow
-# Cikti: "cs8409audio" artifact -> RELEASE/ ve DEBUG/ (CS8409Audio.kext, CS8409Speakers.driver, hdactl)
-name: CS8409Audio Vostro
+# Vostro 3520 - CS8409HDA (henriquejsza/VostroXe): Dell Vostro 3520 icin yazilmis ses surucusu + XeSpeakers eklentisi
+# Kullanim: repo > .github/workflows/cs8409hda.yml > Actions > CS8409HDA Vostro > Run workflow
+name: CS8409HDA Vostro
 
 on:
   workflow_dispatch:
@@ -12,96 +11,21 @@ jobs:
     steps:
       - name: Kaynak
         run: |
-          git clone -q https://github.com/nwrafael/CS8409Audio src
+          git clone -q --depth 1 https://github.com/henriquejsza/VostroXe src
           cd src && git log -1 --format='%h %ci %s'
-      - name: Vostro yamasi (HDA aygit adi HDEF olabilir)
+      - name: Derle (CS8409HDA.kext + XeSpeakers.driver + cs8409ctl)
         run: |
           cd src
-          python3 - <<'PYEOF'
-          p='CS8409Audio.cpp'; t=open(p).read()
-          a='''        OSDictionary *m = IOService::nameMatching("HDAS");
-                  IOService *s = m ? IOService::copyMatchingService(m) : nullptr;
-                  OSSafeReleaseNULL(m);'''
-          assert t.count(a)==1, 'mapHDAS anchor'
-          b='''        IOService *s = nullptr;
-                  static const char *const vNames[] = { "HDAS", "HDEF", "pci8086,51c8" };
-                  for (unsigned vi = 0; vi < 3 && !s; vi++) {
-                      OSDictionary *m = IOService::nameMatching(vNames[vi]);
-                      s = m ? IOService::copyMatchingService(m) : nullptr;
-                      OSSafeReleaseNULL(m);
-                      if (s && !OSDynamicCast(IOPCIDevice, s)) OSSafeReleaseNULL(s);
-                  }'''
-          t=t.replace(a,b)
-          open(p,'w').write(t); print('HDAS/HDEF/pci8086,51c8 arama eklendi')
-          PYEOF
-          grep -n "vNames" CS8409Audio.cpp
-      - name: Vostro yamasi 2 - konum LPIB uzerinden
-        run: |
-          cd src
-          python3 - <<'PYEOF'
-          p='CS8409Audio.cpp'; t=open(p).read()
-          a='        uint32_t d = r32(dpib);\n        uint64_t t1 = mach_absolute_time();\n        o[1] = d % CS8409_RING_BYTES;'
-          assert t.count(a)==1, 'pos anchor'
-          t=t.replace(a,'        uint32_t d = r32(sd + 4);   /* Vostro: LPIB (DPIB yerine) */\n        uint64_t t1 = mach_absolute_time();\n        o[1] = d % CS8409_RING_BYTES;')
-          b='        uint32_t d = r32(cdpib);'
-          assert t.count(b)==1, 'cpos anchor'
-          t=t.replace(b,'        uint32_t d = r32(csd + 4);   /* Vostro: LPIB */')
-          open(p,'w').write(t); print('konum LPIB yamasi')
-          PYEOF
-          grep -n "Vostro: LPIB" CS8409Audio.cpp
-      - name: Vostro yamasi 3 - denetleyiciyi her erisimde D0 gucune al
-        run: |
-          cd src
-          python3 - <<'PYEOF'
-          p='CS8409Audio.cpp'; t=open(p).read()
-          a='    if (!bar) {\n        pci->setMemoryEnable(true);'
-          assert t.count(a)==1, 'bar anchor'
-          b=('    {   /* Vostro: hicbir surucu bagli degilken macOS denetleyiciyi D3 uykusunda birakabilir; MMIO o halde sistemi kilitler */\n'
-             '        UInt8 pmOff = 0;\n'
-             '        if (pci->findPCICapability(kIOPCIPowerManagementCapability, &pmOff) && pmOff) {\n'
-             '            UInt16 pmcsr = pci->configRead16(pmOff + 4);\n'
-             '            if (pmcsr & 3) {\n'
-             '                pci->configWrite16(pmOff + 4, (UInt16)(pmcsr & ~3));\n'
-             '                IOSleep(20);\n'
-             '                IOLog("CS8409Audio: PMCSR 0x%04x -> D0 (0x%04x)\\n", pmcsr, pci->configRead16(pmOff + 4));\n'
-             '            }\n'
-             '        }\n'
-             '        pci->setMemoryEnable(true);\n'
-             '        pci->setBusMasterEnable(true);\n'
-             '    }\n')
-          t=t.replace(a, b+a)
-          open(p,'w').write(t); print('D0 guc yamasi')
-          PYEOF
-          grep -n "PMCSR" CS8409Audio.cpp
-      - name: Vostro yamasi 4 - HDA kesmelerini kapat (sahipsiz kesme firtinasi donmasi)
-        run: |
-          cd src
-          python3 - <<'PYEOF'
-          p='CS8409Audio.cpp'; t=open(p).read()
-          a='    uint32_t gcap = r16(0x00), iss = (gcap >> 8) & 0xf;\n'
-          assert t.count(a)==1, 'gcap anchor'
-          b=('    /* Vostro: HDAS paylasimli IRQ hattinda (IGPU/XHCI/...). Ona bagli surucu yokken acik kalan bir HDA\n'
-             '     * kesmesini kimse temizlemez -> kesme firtinasi -> sistem donar. Bu surucu kesme kullanmiyor: hepsini kapat. */\n'
-             '    {\n'
-             '        uint32_t ic = r32(0x20), is = r32(0x24);\n'
-             '        w32(0x20, 0);              /* INTCTL: GIE/CIE/SIE kapali */\n'
-             '        w16(0x0c, 0);              /* WAKEEN */\n'
-             '        w16(0x0e, 0x7fff);         /* STATESTS temizle */\n'
-             '        w8(0x5c, r8(0x5c) & ~0x05); /* RIRBCTL: RINTCTL/RIRBOIC kapali */\n'
-             '        w8(0x5d, 0x05);            /* RIRBSTS temizle */\n'
-             '        { uint32_t g0 = r16(0x00); int ns = ((g0 >> 8) & 0xf) + ((g0 >> 12) & 0xf); for (int k = 0; k < ns; k++) w8(0x80 + 0x20 * k + 3, 0x1c); } /* SDSTS temizle */\n'
-             '        IOLog("CS8409Audio: kesmeler kapatildi (INTCTL 0x%08x INTSTS 0x%08x -> 0x%08x)\\n", ic, is, r32(0x24));\n'
-             '    }\n')
-          t=t.replace(a, b+a)
-          open(p,'w').write(t); print('kesme kapatma yamasi')
-          PYEOF
-          grep -n "kesmeler kapatildi" CS8409Audio.cpp
-      - name: Derle
-        run: |
-          cd src
-          zsh build.sh dist
-          ls -R out | head -40
+          zsh tools/build-kext.sh CS8409HDA
+          mkdir -p tools/build
+          clang -O2 -Wall -o tools/build/cs8409ctl tools/CS8409HDA/cs8409ctl.c -framework IOKit -framework CoreFoundation
+          zsh tools/XeSpeakers/build.sh
+          codesign -v tools/build/CS8409HDA.kext && codesign -v tools/build/XeSpeakers.driver
+          ls -la tools/build
       - uses: actions/upload-artifact@v4
         with:
-          name: cs8409audio
-          path: src/out/
+          name: cs8409hda
+          path: |
+            src/tools/build/CS8409HDA.kext
+            src/tools/build/XeSpeakers.driver
+            src/tools/build/cs8409ctl
