@@ -1,6 +1,6 @@
-# Vostro 3520 - CS8409HDA (henriquejsza/VostroXe): Dell Vostro 3520 icin yazilmis ses surucusu + XeSpeakers eklentisi
-# Kullanim: repo > .github/workflows/cs8409hda.yml > Actions > CS8409HDA Vostro > Run workflow
-name: CS8409HDA Vostro
+# Vostro 3520 - RTL88WiFi (X1REN41L) + Ventura yigin tasmasi duzeltmesi
+# Kullanim: repo > .github/workflows/rtl88wifi.yml > Actions > RTL88WiFi Vostro > Run workflow
+name: RTL88WiFi Vostro
 
 on:
   workflow_dispatch:
@@ -11,21 +11,19 @@ jobs:
     steps:
       - name: Kaynak
         run: |
-          git clone -q --depth 1 https://github.com/henriquejsza/VostroXe src
+          git clone -q https://github.com/X1REN41L/RTL8821CE-macOS src
           cd src && git log -1 --format='%h %ci %s'
-      - name: Derle (CS8409HDA.kext + XeSpeakers.driver + cs8409ctl)
+      - name: Vostro yamasi - SCAN_DONE ertele
         run: |
-          cd src
-          zsh tools/build-kext.sh CS8409HDA
-          mkdir -p tools/build
-          clang -O2 -Wall -o tools/build/cs8409ctl tools/CS8409HDA/cs8409ctl.c -framework IOKit -framework CoreFoundation
-          zsh tools/XeSpeakers/build.sh
-          codesign -v tools/build/CS8409HDA.kext && codesign -v tools/build/XeSpeakers.driver
-          ls -la tools/build
+          echo 'IyBWb3N0cm86IFZlbnR1cmEnZGEgYmFnbMSxeWtlbiB0YXJhbWEgLT4gU0NBTl9ET05FIHNlbmtyb24gZ29uZGVyaWxpeW9yIC0+IElPODAyMTEgYXluaSB5aWdpbiB1emVyaW5kZQojIFNDQU5fUkVTVUxUIGlzdGVyIC0+IGljIGljZSBpc3RlayAtPiBjZWtpcmRlayB5aWdpbmkgdGFzYXIgKERvdWJsZSBmYXVsdCwgYWlycG9ydGQpLiBTQ0FOX0RPTkUnaSBlcnRlbGUuCmltcG9ydCByZSxzeXMKcD1zeXMuYXJndlsxXTsgdD1vcGVuKHApLnJlYWQoKQphPScjaW5jbHVkZSA8bGlia2Vybi9jb3B5aW8uaD4nCmk9dC5pbmRleChhKTsgaj10LmluZGV4KCdcbicsaSkrMQpoZWxwZXI9JycnI2luY2x1ZGUgPGtlcm4vdGhyZWFkX2NhbGwuaD4KLyogVm9zdHJvOiBvbmJlbGxla3RlbiB0YW1hbWxhbmFuIHRhcmFtYWRhIFNDQU5fRE9ORSdpIGF5cmkgaXMgcGFyY2FjaWdpbmRhIGdvbmRlciAoeWlnaW4gdGFzbWFzaSBvbmxlbWkpICovCnN0YXRpYyB0aHJlYWRfY2FsbF90IGdWb3N0cm9TY2FuRG9uZUNhbGwgPSBudWxscHRyOwpzdGF0aWMgdm9pZCB2b3N0cm9TY2FuRG9uZURlZmVycmVkKHRocmVhZF9jYWxsX3BhcmFtX3QgcDAsIHRocmVhZF9jYWxsX3BhcmFtX3QpCnsKICAgIFJUVzg4RXZlbnREZWxlZ2F0ZSAqZCA9IChSVFc4OEV2ZW50RGVsZWdhdGUgKilwMDsKICAgIFVJbnQzMiByID0gMDsKICAgIGlmIChkKSBkLT5ydHc4OEV2ZW50KGtSVFc4OEV2ZW50U2NhbkRvbmUsICZyKTsKfQpzdGF0aWMgYm9vbCB2b3N0cm9EZWZlclNjYW5Eb25lKFJUVzg4RXZlbnREZWxlZ2F0ZSAqc2VsZikKewogICAgaWYgKCFnVm9zdHJvU2NhbkRvbmVDYWxsKQogICAgICAgIGdWb3N0cm9TY2FuRG9uZUNhbGwgPSB0aHJlYWRfY2FsbF9hbGxvY2F0ZSh2b3N0cm9TY2FuRG9uZURlZmVycmVkLCAodGhyZWFkX2NhbGxfcGFyYW1fdClzZWxmKTsKICAgIGlmICghZ1Zvc3Ryb1NjYW5Eb25lQ2FsbCkgcmV0dXJuIGZhbHNlOwogICAgdWludDY0X3QgZGwgPSAwOwogICAgY2xvY2tfaW50ZXJ2YWxfdG9fZGVhZGxpbmUoMzAsIGtNaWxsaXNlY29uZFNjYWxlLCAmZGwpOwogICAgdGhyZWFkX2NhbGxfZW50ZXJfZGVsYXllZChnVm9zdHJvU2NhbkRvbmVDYWxsLCBkbCk7CiAgICByZXR1cm4gdHJ1ZTsKfQonJycKdD10WzpqXStoZWxwZXIrdFtqOl0KcGF0PXJlLmNvbXBpbGUocicoa3ByaW50ZlwoIlJUTDg4V2lGaTogU0NBTl9SRVEoPzpfTVVMVElQTEUpPyBjb25uZWN0ZWQgY2FjaGUtb25seSBjb21wbGV0aW9uXFxuIlwpO1xuKFxzKikpX25ldGlmLT5wb3N0TWVzc2FnZVwoQVBQTEU4MDIxMV9NX1NDQU5fRE9ORSwgJnJlc3VsdCwgc2l6ZW9mXChyZXN1bHRcKVwpOycpCnQsbj1wYXQuc3VibihsYW1iZGEgbTogbS5ncm91cCgxKSsnaWYgKCF2b3N0cm9EZWZlclNjYW5Eb25lKHRoaXMpKSBfbmV0aWYtPnBvc3RNZXNzYWdlKEFQUExFODAyMTFfTV9TQ0FOX0RPTkUsICZyZXN1bHQsIHNpemVvZihyZXN1bHQpKTsnLCB0KQphc3NlcnQgbj09MiwgbgpvcGVuKHAsJ3cnKS53cml0ZSh0KTsgcHJpbnQoJ1JUTDg4V2lGaTogU0NBTl9ET05FIGVydGVsZW5kaSAoJWQgeWVyKScgJSBuKQo=' | base64 -d > /tmp/rtlpatch.py
+          python3 /tmp/rtlpatch.py src/driver/RTL88WiFi/src/kext/RTL88WiFi.cpp
+          grep -n "vostroDeferScanDone" src/driver/RTL88WiFi/src/kext/RTL88WiFi.cpp
+      - name: Derle
+        run: |
+          cd src/driver/RTL88WiFi
+          make rtl88wifi 2>&1 | tail -30
+          ls -la build/out
       - uses: actions/upload-artifact@v4
         with:
-          name: cs8409hda
-          path: |
-            src/tools/build/CS8409HDA.kext
-            src/tools/build/XeSpeakers.driver
-            src/tools/build/cs8409ctl
+          name: rtl88wifi
+          path: src/driver/RTL88WiFi/build/out/
