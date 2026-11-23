@@ -1813,6 +1813,7 @@ jobs:
           # C = uyu/uyan, D = C + 2ms saat yoklayici (eski)
           # E = kara kutu + saat v2 (sadece gercek kesme + bekci) + amfi GPIO1 uyandirma (uyu/uyan YOK)
           # F = E + 4 sn sonra uyu/uyan (yedek)
+          echo 'IyBWb3N0cm86IGFuYWxvZyBjaWtpcyBndXZlbmxpayBwYXlpIDY0IGthcmUgKDEuMyBtcykgLT4gMTAyNCBrYXJlICh+MjEgbXMpLiBLZXNtZSBnZWNpa21lc2kvc2Fyc2ludGlzaQojIEhBTCdpbiB5YXppc2luaSBETUEnbmluIGdlcmlzaW5lIGR1c3VydXAgSXNvVG9vT2xkICgweEUwMDAwMkVFKSBpbGUgc2VzaSBrZXNpeW9yZHUuCmltcG9ydCBzeXMKcD1zeXMuYXJndlsxXSsnL1Zvb2Rvb0hEQUVuZ2luZS5jcHAnOyB0PW9wZW4ocCkucmVhZCgpCmE9JyNkZWZpbmUgQU5BTE9HX1NBRkVUWV9VU1x0MTMzMycKYXNzZXJ0IHQuY291bnQoYSk9PTEsICdzYWZldHkgYW5jaG9yJwp0PXQucmVwbGFjZShhLCcjZGVmaW5lIEFOQUxPR19TQUZFVFlfVVNcdDIxMzM0XHQvKiBWb3N0cm86IDEwMjQga2FyZSAqLyAvLycpCm9wZW4ocCwndycpLndyaXRlKHQpCnByaW50KCdWb3N0cm8gZ3V2ZW5saWsgcGF5aSAxMDI0IGthcmUnKQo=' | base64 -d > /tmp/vostro_offset.py
           # H = C (uyu/uyan) + saat v2 + kara kutu + uyku korumasi, AMFI TETIKLEME YOK (onerilen)
           cp -R vhda vhdaC; cp -R vhda vhdaE; cp -R vhda vhdaF; cp -R vhda vhdaH
           python3 /tmp/vostro_timerwake.py vhdaC/tranc
@@ -1828,13 +1829,16 @@ jobs:
           python3 /tmp/vostro_clock2.py vhdaH/tranc
           python3 /tmp/vostro_derin.py vhdaH/tranc
           python3 /tmp/vostro_guard.py vhdaH/tranc
-          for V in H F C E; do
+          # I = H + guvenlik payi 1024 kare (IsoTooOld kesilmeleri)
+          cp -R vhdaH vhdaI
+          python3 /tmp/vostro_offset.py vhdaI/tranc
+          for V in I H C F; do
             ( cd vhda$V/tranc && xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -8 )
             K="$(find vhda$V/tranc/build -type d -name VoodooHDA.kext -path '*Release*' | head -1)"
             if [ -n "$K" ]; then cp -R "$K" "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext"; else echo "UYARI: $V derlenemedi"; fi
           done
           ls -d "$GITHUB_WORKSPACE"/out/VoodooHDA-*.kext
-          for V in H F C; do [ -d "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" ] && { cp -R "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" "$GITHUB_WORKSPACE/out/VoodooHDA.kext"; break; }; done
+          for V in I H C; do [ -d "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" ] && { cp -R "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" "$GITHUB_WORKSPACE/out/VoodooHDA.kext"; break; }; done
           test -d "$GITHUB_WORKSPACE/out/VoodooHDA.kext"
           clang -arch x86_64 vhda/tranc/getdump.c -I vhda/tranc -o "$GITHUB_WORKSPACE/out/vhda-getdump" -framework IOKit -framework CoreFoundation -Wno-deprecated-declarations || echo "getdump derlenemedi"
           ls "$GITHUB_WORKSPACE/out"
