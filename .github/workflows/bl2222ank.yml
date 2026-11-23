@@ -1741,7 +1741,22 @@ jobs:
           a2='\taudioCommit(funcGroup);\n//\tdumpMsg("HP switch init...\\n");'
           assert s.count(a2)==1, 'commit anchor yok'
           s=s.replace(a2,'\taudioCommit(funcGroup);\n\tIOSleep(100);\n\tpowerup(funcGroup);\n\tapplyAppleALCWakeVerbs(funcGroup);\n\taudioCommit(funcGroup);\n\tlogMsg("Vostro CS8409: wake sirasi acilista tekrarlandi\\n");\n//\tdumpMsg("HP switch init...\\n");')
-          open(p,'w').write(s); print('dugum siniri 250 + acilis wake sirasi')
+          # Kapak kapat/ac (suspend+resume) sesi calistiriyor -> acilistan ~5 sn sonra bir kez yazilimla ayni sirayi yap
+          p2='vhda/tranc/VoodooHDADevice.cpp'; t=open(p2).read()
+          a3='\tif (device->mVerbose >= 3)\n\t\tdevice->logMsg("total interrupts:'
+          assert t.count(a3)==1, 'timer anchor yok'
+          ins=('\tstatic bool vostroWakeDone = false;\n'
+               '\tif (!vostroWakeDone) {\n'
+               '\t\tvostroWakeDone = true;\n'
+               '\t\tIOLog("VoodooHDA Vostro: acilis sonrasi yazilim uyu/uyan basliyor\\n");\n'
+               '\t\tbool sOk = device->suspend();\n'
+               '\t\tIOSleep(300);\n'
+               '\t\tbool rOk = device->resume();\n'
+               '\t\tIOLog("VoodooHDA Vostro: yazilim uyu/uyan bitti suspend=%d resume=%d\\n", sOk, rOk);\n'
+               '\t}\n')
+          t=t.replace(a3, ins+a3)
+          open(p2,'w').write(t)
+          open(p,'w').write(s); print('dugum siniri 250 + acilis wake sirasi + 5sn yazilim uyu/uyan')
           PYEOF
           cd vhda/tranc
           xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -30
