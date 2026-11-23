@@ -547,7 +547,7 @@ jobs:
           // MARK: - Komut calistirma
 
           @discardableResult
-          func shell(_ cmd: String, admin: Bool = false) -> (code: Int32, out: String) {
+          func shell(_ cmd: String, admin: Bool = false, timeout: Double = 0) -> (code: Int32, out: String) {
               let p = Process()
               if admin {
                   let esc = cmd.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
@@ -564,8 +564,16 @@ jobs:
               p.standardOutput = pipe
               p.standardError = pipe
               do { try p.run() } catch { return (-1, "\(error)") }
+              var timedOut = false
+              if timeout > 0 {
+                  // Surucu takilirsa (uzun uykudan sonra) komutu oldur, arayuz donmasin
+                  DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                      if p.isRunning { timedOut = true; p.terminate(); kill(p.processIdentifier, SIGKILL) }
+                  }
+              }
               let data = pipe.fileHandleForReading.readDataToEndOfFile()
               p.waitUntilExit()
+              if timedOut { return (-2, "TIMEOUT") }
               return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
           }
 
@@ -593,19 +601,48 @@ jobs:
               var powerOn: Bool { (status["Power"] ?? "on").contains("on") }
               var rssi: Int? { Int((status["RSSI"] ?? "").components(separatedBy: " ").first ?? "") }
 
+              let wq = DispatchQueue(label: "vostro.wifi")   // komutlar sirayla, ust uste binmez
+              var pending = 0
+              @Published var stuck = false
+
               func run(_ args: String, then: ((String) -> Void)? = nil) {
-                  busy = true
-                  DispatchQueue.global().async {
-                      var r = shell("\(self.tool) \(args)")
-                      if r.code != 0 && (r.out.contains("ermission") || r.out.contains("privilege") || r.out.contains("0xe00002c1")) {
-                          r = shell("/usr/local/bin/\(self.tool) \(args)", admin: true)
+                  if pending > 3 { return }                  // surucu takildiysa kuyruk sismesin
+                  pending += 1; busy = true
+                  let to: Double = args.hasPrefix("scan") ? 20 : (args.hasPrefix("connect") ? 30 : 8)
+                  wq.async {
+                      var r = shell("\(self.tool) \(args)", timeout: to)
+                      if r.code != 0 && r.code != -2 && (r.out.contains("ermission") || r.out.contains("privilege") || r.out.contains("0xe00002c1")) {
+                          r = shell("/usr/local/bin/\(self.tool) \(args)", admin: true, timeout: to + 30)
                       }
                       DispatchQueue.main.async {
-                          self.busy = false
+                          self.pending -= 1; self.busy = self.pending > 0
+                          if r.code == -2 {
+                              self.stuck = true
+                              self.message = "Wi-Fi karti yanit vermiyor, yeniden baslatiliyor..."
+                          } else { self.stuck = false }
                           if r.code == -1 || r.out.contains("command not found") {
                               self.message = "rtw88ctl bulunamadi (/usr/local/bin)"
                           }
-                          then?(r.out)
+                          then?(r.code == -2 ? "" : r.out)
+                      }
+                  }
+              }
+
+              // Uykudan uyaninca: karti kontrol et, takildiysa kapat-ac, bilinen aga yeniden baglan
+              func afterWake() {
+                  message = "Uykudan uyanildi, Wi-Fi kontrol ediliyor..."
+                  run("status") { out in
+                      if self.stuck || out.isEmpty || out.contains("rror") {
+                          self.run("power off") { _ in
+                              DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                  self.run("power on") { _ in
+                                      DispatchQueue.main.asyncAfter(deadline: .now() + 3) { self.autoJoin() }
+                                  }
+                              }
+                          }
+                      } else {
+                          self.message = ""
+                          self.autoJoin()
                       }
                   }
               }
@@ -703,15 +740,23 @@ jobs:
               @Published var current: AudioDeviceID = 0
 
               func refresh() {
+                  // CoreAudio uykudan sonra takilabilir; ana is parcacigini (menuyu) kilitlemesin
+                  DispatchQueue.global().async {
+                      let r = AudioModel.load()
+                      DispatchQueue.main.async { if let r = r { self.outputs = r.0; self.current = r.1 } }
+                  }
+              }
+
+              static func load() -> ([AudioDev], AudioDeviceID)? {
                   var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
                                                         mScope: kAudioObjectPropertyScopeGlobal,
                                                         mElement: kAudioObjectPropertyElementMain)
                   var size: UInt32 = 0
-                  guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size) == noErr else { return }
+                  guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size) == noErr else { return nil }
                   var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
-                  guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids) == noErr else { return }
-                  outputs = ids.filter { AudioModel.hasOutput($0) }.map { AudioDev(id: $0, name: AudioModel.name($0)) }
-                  current = AudioModel.defaultOutput()
+                  guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids) == noErr else { return nil }
+                  let outs = ids.filter { AudioModel.hasOutput($0) }.map { AudioDev(id: $0, name: AudioModel.name($0)) }
+                  return (outs, AudioModel.defaultOutput())
               }
 
               static func hasOutput(_ id: AudioDeviceID) -> Bool {
@@ -748,6 +793,9 @@ jobs:
               }
 
               func select(_ id: AudioDeviceID) {
+                  DispatchQueue.global().async { self.setDefault(id); DispatchQueue.main.async { self.refresh() } }
+              }
+              private func setDefault(_ id: AudioDeviceID) {
                   for sel in [kAudioHardwarePropertyDefaultOutputDevice, kAudioHardwarePropertyDefaultSystemOutputDevice] {
                       var addr = AudioObjectPropertyAddress(mSelector: sel, mScope: kAudioObjectPropertyScopeGlobal,
                                                             mElement: kAudioObjectPropertyElementMain)
@@ -755,7 +803,6 @@ jobs:
                       AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil,
                                                  UInt32(MemoryLayout<AudioDeviceID>.size), &dev)
                   }
-                  refresh()
               }
           }
 
@@ -929,9 +976,14 @@ jobs:
                   let w = WiFiModel()
                   _wifi = StateObject(wrappedValue: w)
                   DispatchQueue.main.asyncAfter(deadline: .now() + 3) { w.autoJoin() }
+                  NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification,
+                                                                    object: nil, queue: .main) { _ in
+                      DispatchQueue.main.asyncAfter(deadline: .now() + 5) { w.afterWake() }
+                  }
               }
 
               var icon: String {
+                  if wifi.stuck { return "wifi.exclamationmark" }
                   if !wifi.powerOn { return "wifi.slash" }
                   return wifi.connectedSSID == nil ? "wifi.exclamationmark" : "wifi"
               }
@@ -1758,7 +1810,7 @@ jobs:
             cp -R "$K" "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext"
           done
           cp -R "$GITHUB_WORKSPACE/out/VoodooHDA-B.kext" "$GITHUB_WORKSPACE/out/VoodooHDA.kext"
-          clang vhda/tranc/getdump.c -I vhda/tranc -o "$GITHUB_WORKSPACE/out/vhda-getdump" -framework IOKit -framework CoreFoundation -Wno-deprecated-declarations || echo "getdump derlenemedi"
+          clang -arch x86_64 vhda/tranc/getdump.c -I vhda/tranc -o "$GITHUB_WORKSPACE/out/vhda-getdump" -framework IOKit -framework CoreFoundation -Wno-deprecated-declarations || echo "getdump derlenemedi"
           ls "$GITHUB_WORKSPACE/out"
       - uses: actions/upload-artifact@v4
         with:
