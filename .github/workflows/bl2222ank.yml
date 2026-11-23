@@ -35,6 +35,20 @@ jobs:
           open(p,'w').write(t); print('HDAS/HDEF/pci8086,51c8 arama eklendi')
           PYEOF
           grep -n "vNames" CS8409Audio.cpp
+      - name: Vostro yamasi 2 - konum LPIB uzerinden
+        run: |
+          cd src
+          python3 - <<'PYEOF'
+          p='CS8409Audio.cpp'; t=open(p).read()
+          a='        uint32_t d = r32(dpib);\n        uint64_t t1 = mach_absolute_time();\n        o[1] = d % CS8409_RING_BYTES;'
+          assert t.count(a)==1, 'pos anchor'
+          t=t.replace(a,'        uint32_t d = r32(sd + 4);   /* Vostro: LPIB (DPIB yerine) */\n        uint64_t t1 = mach_absolute_time();\n        o[1] = d % CS8409_RING_BYTES;')
+          b='        uint32_t d = r32(cdpib);'
+          assert t.count(b)==1, 'cpos anchor'
+          t=t.replace(b,'        uint32_t d = r32(csd + 4);   /* Vostro: LPIB */')
+          open(p,'w').write(t); print('konum LPIB yamasi')
+          PYEOF
+          grep -n "Vostro: LPIB" CS8409Audio.cpp
       - name: Derle
         run: |
           cd src
