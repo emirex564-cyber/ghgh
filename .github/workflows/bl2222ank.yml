@@ -1,6 +1,7 @@
-# Vostro 3520 - RTL88WiFi (X1REN41L) + Ventura yigin tasmasi duzeltmesi
-# Kullanim: repo > .github/workflows/rtl88wifi.yml > Actions > RTL88WiFi Vostro > Run workflow
-name: RTL88WiFi Vostro
+# Vostro 3520 - CS8409Audio (nwrafael) derlemesi: Dell "Warlock MLK" CS8409 icin ozel ses surucusu
+# Kullanim: repo > .github/workflows/cs8409audio.yml > Actions > CS8409Audio Vostro > Run workflow
+# Cikti: "cs8409audio" artifact -> RELEASE/ ve DEBUG/ (CS8409Audio.kext, CS8409Speakers.driver, hdactl)
+name: CS8409Audio Vostro
 
 on:
   workflow_dispatch:
@@ -11,19 +12,96 @@ jobs:
     steps:
       - name: Kaynak
         run: |
-          git clone -q https://github.com/X1REN41L/RTL8821CE-macOS src
+          git clone -q https://github.com/nwrafael/CS8409Audio src
           cd src && git log -1 --format='%h %ci %s'
-      - name: Vostro yamasi - SCAN_DONE ertele
+      - name: Vostro yamasi (HDA aygit adi HDEF olabilir)
         run: |
-          echo 'IyBWb3N0cm86IFZlbnR1cmEnZGEgYmFnbMSxeWtlbiB0YXJhbWEgLT4gU0NBTl9ET05FIHNlbmtyb24gZ29uZGVyaWxpeW9yIC0+IElPODAyMTEgYXluaSB5aWdpbiB1emVyaW5kZQojIFNDQU5fUkVTVUxUIGlzdGVyIC0+IGljIGljZSBpc3RlayAtPiBjZWtpcmRlayB5aWdpbmkgdGFzYXIgKERvdWJsZSBmYXVsdCwgYWlycG9ydGQpLiBTQ0FOX0RPTkUnaSBlcnRlbGUuCmltcG9ydCByZSxzeXMKcD1zeXMuYXJndlsxXTsgdD1vcGVuKHApLnJlYWQoKQphPScjaW5jbHVkZSA8bGlia2Vybi9jb3B5aW8uaD4nCmk9dC5pbmRleChhKTsgaj10LmluZGV4KCdcbicsaSkrMQpoZWxwZXI9JycnI2luY2x1ZGUgPGtlcm4vdGhyZWFkX2NhbGwuaD4KLyogVm9zdHJvOiBvbmJlbGxla3RlbiB0YW1hbWxhbmFuIHRhcmFtYWRhIFNDQU5fRE9ORSdpIGF5cmkgaXMgcGFyY2FjaWdpbmRhIGdvbmRlciAoeWlnaW4gdGFzbWFzaSBvbmxlbWkpICovCnN0YXRpYyB0aHJlYWRfY2FsbF90IGdWb3N0cm9TY2FuRG9uZUNhbGwgPSBudWxscHRyOwpzdGF0aWMgdm9pZCB2b3N0cm9TY2FuRG9uZURlZmVycmVkKHRocmVhZF9jYWxsX3BhcmFtX3QgcDAsIHRocmVhZF9jYWxsX3BhcmFtX3QpCnsKICAgIFJUVzg4RXZlbnREZWxlZ2F0ZSAqZCA9IChSVFc4OEV2ZW50RGVsZWdhdGUgKilwMDsKICAgIFVJbnQzMiByID0gMDsKICAgIGlmIChkKSBkLT5ydHc4OEV2ZW50KGtSVFc4OEV2ZW50U2NhbkRvbmUsICZyKTsKfQpzdGF0aWMgYm9vbCB2b3N0cm9EZWZlclNjYW5Eb25lKFJUVzg4RXZlbnREZWxlZ2F0ZSAqc2VsZikKewogICAgaWYgKCFnVm9zdHJvU2NhbkRvbmVDYWxsKQogICAgICAgIGdWb3N0cm9TY2FuRG9uZUNhbGwgPSB0aHJlYWRfY2FsbF9hbGxvY2F0ZSh2b3N0cm9TY2FuRG9uZURlZmVycmVkLCAodGhyZWFkX2NhbGxfcGFyYW1fdClzZWxmKTsKICAgIGlmICghZ1Zvc3Ryb1NjYW5Eb25lQ2FsbCkgcmV0dXJuIGZhbHNlOwogICAgdWludDY0X3QgZGwgPSAwOwogICAgY2xvY2tfaW50ZXJ2YWxfdG9fZGVhZGxpbmUoMzAsIGtNaWxsaXNlY29uZFNjYWxlLCAmZGwpOwogICAgdGhyZWFkX2NhbGxfZW50ZXJfZGVsYXllZChnVm9zdHJvU2NhbkRvbmVDYWxsLCBkbCk7CiAgICByZXR1cm4gdHJ1ZTsKfQonJycKdD10WzpqXStoZWxwZXIrdFtqOl0KcGF0PXJlLmNvbXBpbGUocicoa3ByaW50ZlwoIlJUTDg4V2lGaTogU0NBTl9SRVEoPzpfTVVMVElQTEUpPyBjb25uZWN0ZWQgY2FjaGUtb25seSBjb21wbGV0aW9uXFxuIlwpO1xuKFxzKikpX25ldGlmLT5wb3N0TWVzc2FnZVwoQVBQTEU4MDIxMV9NX1NDQU5fRE9ORSwgJnJlc3VsdCwgc2l6ZW9mXChyZXN1bHRcKVwpOycpCnQsbj1wYXQuc3VibihsYW1iZGEgbTogbS5ncm91cCgxKSsnaWYgKCF2b3N0cm9EZWZlclNjYW5Eb25lKHRoaXMpKSBfbmV0aWYtPnBvc3RNZXNzYWdlKEFQUExFODAyMTFfTV9TQ0FOX0RPTkUsICZyZXN1bHQsIHNpemVvZihyZXN1bHQpKTsnLCB0KQphc3NlcnQgbj09MiwgbgpvcGVuKHAsJ3cnKS53cml0ZSh0KTsgcHJpbnQoJ1JUTDg4V2lGaTogU0NBTl9ET05FIGVydGVsZW5kaSAoJWQgeWVyKScgJSBuKQo=' | base64 -d > /tmp/rtlpatch.py
-          python3 /tmp/rtlpatch.py src/driver/RTL88WiFi/src/kext/RTL88WiFi.cpp
-          grep -n "vostroDeferScanDone" src/driver/RTL88WiFi/src/kext/RTL88WiFi.cpp
+          cd src
+          python3 - <<'PYEOF'
+          p='CS8409Audio.cpp'; t=open(p).read()
+          a='''        OSDictionary *m = IOService::nameMatching("HDAS");
+                  IOService *s = m ? IOService::copyMatchingService(m) : nullptr;
+                  OSSafeReleaseNULL(m);'''
+          assert t.count(a)==1, 'mapHDAS anchor'
+          b='''        IOService *s = nullptr;
+                  static const char *const vNames[] = { "HDAS", "HDEF", "pci8086,51c8" };
+                  for (unsigned vi = 0; vi < 3 && !s; vi++) {
+                      OSDictionary *m = IOService::nameMatching(vNames[vi]);
+                      s = m ? IOService::copyMatchingService(m) : nullptr;
+                      OSSafeReleaseNULL(m);
+                      if (s && !OSDynamicCast(IOPCIDevice, s)) OSSafeReleaseNULL(s);
+                  }'''
+          t=t.replace(a,b)
+          open(p,'w').write(t); print('HDAS/HDEF/pci8086,51c8 arama eklendi')
+          PYEOF
+          grep -n "vNames" CS8409Audio.cpp
+      - name: Vostro yamasi 2 - konum LPIB uzerinden
+        run: |
+          cd src
+          python3 - <<'PYEOF'
+          p='CS8409Audio.cpp'; t=open(p).read()
+          a='        uint32_t d = r32(dpib);\n        uint64_t t1 = mach_absolute_time();\n        o[1] = d % CS8409_RING_BYTES;'
+          assert t.count(a)==1, 'pos anchor'
+          t=t.replace(a,'        uint32_t d = r32(sd + 4);   /* Vostro: LPIB (DPIB yerine) */\n        uint64_t t1 = mach_absolute_time();\n        o[1] = d % CS8409_RING_BYTES;')
+          b='        uint32_t d = r32(cdpib);'
+          assert t.count(b)==1, 'cpos anchor'
+          t=t.replace(b,'        uint32_t d = r32(csd + 4);   /* Vostro: LPIB */')
+          open(p,'w').write(t); print('konum LPIB yamasi')
+          PYEOF
+          grep -n "Vostro: LPIB" CS8409Audio.cpp
+      - name: Vostro yamasi 3 - denetleyiciyi her erisimde D0 gucune al
+        run: |
+          cd src
+          python3 - <<'PYEOF'
+          p='CS8409Audio.cpp'; t=open(p).read()
+          a='    if (!bar) {\n        pci->setMemoryEnable(true);'
+          assert t.count(a)==1, 'bar anchor'
+          b=('    {   /* Vostro: hicbir surucu bagli degilken macOS denetleyiciyi D3 uykusunda birakabilir; MMIO o halde sistemi kilitler */\n'
+             '        UInt8 pmOff = 0;\n'
+             '        if (pci->findPCICapability(kIOPCIPowerManagementCapability, &pmOff) && pmOff) {\n'
+             '            UInt16 pmcsr = pci->configRead16(pmOff + 4);\n'
+             '            if (pmcsr & 3) {\n'
+             '                pci->configWrite16(pmOff + 4, (UInt16)(pmcsr & ~3));\n'
+             '                IOSleep(20);\n'
+             '                IOLog("CS8409Audio: PMCSR 0x%04x -> D0 (0x%04x)\\n", pmcsr, pci->configRead16(pmOff + 4));\n'
+             '            }\n'
+             '        }\n'
+             '        pci->setMemoryEnable(true);\n'
+             '        pci->setBusMasterEnable(true);\n'
+             '    }\n')
+          t=t.replace(a, b+a)
+          open(p,'w').write(t); print('D0 guc yamasi')
+          PYEOF
+          grep -n "PMCSR" CS8409Audio.cpp
+      - name: Vostro yamasi 4 - HDA kesmelerini kapat (sahipsiz kesme firtinasi donmasi)
+        run: |
+          cd src
+          python3 - <<'PYEOF'
+          p='CS8409Audio.cpp'; t=open(p).read()
+          a='    uint32_t gcap = r16(0x00), iss = (gcap >> 8) & 0xf;\n'
+          assert t.count(a)==1, 'gcap anchor'
+          b=('    /* Vostro: HDAS paylasimli IRQ hattinda (IGPU/XHCI/...). Ona bagli surucu yokken acik kalan bir HDA\n'
+             '     * kesmesini kimse temizlemez -> kesme firtinasi -> sistem donar. Bu surucu kesme kullanmiyor: hepsini kapat. */\n'
+             '    {\n'
+             '        uint32_t ic = r32(0x20), is = r32(0x24);\n'
+             '        w32(0x20, 0);              /* INTCTL: GIE/CIE/SIE kapali */\n'
+             '        w16(0x0c, 0);              /* WAKEEN */\n'
+             '        w16(0x0e, 0x7fff);         /* STATESTS temizle */\n'
+             '        w8(0x5c, r8(0x5c) & ~0x05); /* RIRBCTL: RINTCTL/RIRBOIC kapali */\n'
+             '        w8(0x5d, 0x05);            /* RIRBSTS temizle */\n'
+             '        { uint32_t g0 = r16(0x00); int ns = ((g0 >> 8) & 0xf) + ((g0 >> 12) & 0xf); for (int k = 0; k < ns; k++) w8(0x80 + 0x20 * k + 3, 0x1c); } /* SDSTS temizle */\n'
+             '        IOLog("CS8409Audio: kesmeler kapatildi (INTCTL 0x%08x INTSTS 0x%08x -> 0x%08x)\\n", ic, is, r32(0x24));\n'
+             '    }\n')
+          t=t.replace(a, b+a)
+          open(p,'w').write(t); print('kesme kapatma yamasi')
+          PYEOF
+          grep -n "kesmeler kapatildi" CS8409Audio.cpp
       - name: Derle
         run: |
-          cd src/driver/RTL88WiFi
-          make rtl88wifi 2>&1 | tail -30
-          ls -la build/out
+          cd src
+          zsh build.sh dist
+          ls -R out | head -40
       - uses: actions/upload-artifact@v4
         with:
-          name: rtl88wifi
-          path: src/driver/RTL88WiFi/build/out/
+          name: cs8409audio
+          path: src/out/
