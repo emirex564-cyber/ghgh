@@ -751,13 +751,17 @@ jobs:
           # J = I + LPIB duzeltmeli damga (kesme gecikmesi telafisi) -> ONERILEN
           cp -R vhdaI vhdaJ
           python3 /tmp/vostro_clock3.py vhdaJ/tranc
-          for V in J I H C; do
+          echo 'IyBWb3N0cm8gc2FhdCB2NCAoUExMKTogZGFtZ2FsYXJpIHB1cnV6c3V6bGVzdGlyLiBIZXIgdGFtcG9uLXNvbnUga2VzbWVzaW5kZSBvbGN1bGVuIHphbWFuLCB0YWhtaW4gZWRpbGVuCiMgemFtYW5hIHl1bXVzYWtjYSBjZWtpbGlyOyB0aXRyZW1lIChqaXR0ZXIpIENvcmVBdWRpbyd5YSBnaXRtZXogLT4gIlNhbXBsZSB0aW1lIGlzIG5vdCBjb25zZWN1dGl2ZSIvSXNvVG9vT2xkIGF6YWxpci4KIyBCdXl1ayBzYXBtYWxhcmkga2FyYSBrdXR1eWEgIlNBUE1BIiBvbGFyYWsgeWF6YXIuCmltcG9ydCBzeXMKcD1zeXMuYXJndlsxXSsnL1Zvb2Rvb0hEQURldmljZS5jcHAnOyB0PW9wZW4ocCkucmVhZCgpCmE9J1x0XHRtSW50clRpbWVTdGFtcCA9IG5vdztcbicKYXNzZXJ0IHQuY291bnQoYSk9PTEsICdvbmNlIHZvc3Ryb19jbG9jazMucHknCnBsbD1yJycnCQl7CgkJCXN0YXRpYyBVSW50NjQgc1BsbFRzWzY0XSwgc1BsbFBlcls2NF07CgkJCWludCBjaSA9IGNoYW5uZWxJZDsKCQkJaWYgKCFnVlRzTGFzdFtjaV0gfHwgIXNQbGxUc1tjaV0gfHwgZ1ZJcnFXcmFwc1tjaV0gPT0gMCkgewoJCQkJc1BsbFRzW2NpXSA9IG5vdzsgc1BsbFBlcltjaV0gPSBwZXI7CgkJCX0gZWxzZSB7CgkJCQlVSW50NjQgcHJlZCA9IHNQbGxUc1tjaV0gKyBzUGxsUGVyW2NpXTsKCQkJCVNJbnQ2NCBlcnIgPSAoU0ludDY0KW5vdyAtIChTSW50NjQpcHJlZDsKCQkJCVNJbnQ2NCBhZXJyID0gZXJyIDwgMCA/IC1lcnIgOiBlcnI7CgkJCQlVSW50NjQgZXJyTnMgPSAwOyBhYnNvbHV0ZXRpbWVfdG9fbmFub3NlY29uZHMoKFVJbnQ2NClhZXJyLCAmZXJyTnMpOwoJCQkJaWYgKChVSW50NjQpYWVyciA+IHBlciAvIDQpIHsKCQkJCQl2b3N0cm9FdigiU0FQTUEtQlVZVUsgY2glZCAlbGxkdXMgLT4geWVuaWRlbiBraWxpdCIsIGNpLCAobG9uZyBsb25nKShlcnJOcyAvIDEwMDBVTEwpICogKGVyciA8IDAgPyAtMSA6IDEpKTsKCQkJCQlzUGxsVHNbY2ldID0gbm93OyBzUGxsUGVyW2NpXSA9IHBlcjsKCQkJCX0gZWxzZSB7CgkJCQkJaWYgKGVyck5zID4gMTAwMDAwMFVMTCkKCQkJCQkJdm9zdHJvRXYoIlNBUE1BIGNoJWQgJWxsZHVzIiwgY2ksIChsb25nIGxvbmcpKGVyck5zIC8gMTAwMFVMTCkgKiAoZXJyIDwgMCA/IC0xIDogMSkpOwoJCQkJCXNQbGxQZXJbY2ldID0gKFVJbnQ2NCkoKFNJbnQ2NClzUGxsUGVyW2NpXSArIGVyciAvIDY0KTsKCQkJCQlpZiAoc1BsbFBlcltjaV0gPiBwZXIgKyBwZXIgLyA1MCkgc1BsbFBlcltjaV0gPSBwZXIgKyBwZXIgLyA1MDsKCQkJCQlpZiAoc1BsbFBlcltjaV0gPCBwZXIgLSBwZXIgLyA1MCkgc1BsbFBlcltjaV0gPSBwZXIgLSBwZXIgLyA1MDsKCQkJCQlzUGxsVHNbY2ldID0gKFVJbnQ2NCkoKFNJbnQ2NClwcmVkICsgZXJyIC8gOCk7CgkJCQl9CgkJCX0KCQkJbm93ID0gc1BsbFRzW2NpXTsKCQl9CicnJwp0PXQucmVwbGFjZShhLCBwbGwrYSkKb3BlbihwLCd3Jykud3JpdGUodCkKcHJpbnQoJ1Zvc3RybyBzYWF0IHY0IChQTEwpIGVrbGVuZGknKQo=' | base64 -d > /tmp/vostro_pll.py
+          # K = J + PLL puruzsuz saat -> ONERILEN
+          cp -R vhdaJ vhdaK
+          python3 /tmp/vostro_pll.py vhdaK/tranc
+          for V in K J I C; do
             ( cd vhda$V/tranc && xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -8 )
             K="$(find vhda$V/tranc/build -type d -name VoodooHDA.kext -path '*Release*' | head -1)"
             if [ -n "$K" ]; then cp -R "$K" "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext"; else echo "UYARI: $V derlenemedi"; fi
           done
           ls -d "$GITHUB_WORKSPACE"/out/VoodooHDA-*.kext
-          for V in J I H C; do [ -d "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" ] && { cp -R "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" "$GITHUB_WORKSPACE/out/VoodooHDA.kext"; break; }; done
+          for V in K J I C; do [ -d "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" ] && { cp -R "$GITHUB_WORKSPACE/out/VoodooHDA-$V.kext" "$GITHUB_WORKSPACE/out/VoodooHDA.kext"; break; }; done
           test -d "$GITHUB_WORKSPACE/out/VoodooHDA.kext"
           clang -arch x86_64 vhda/tranc/getdump.c -I vhda/tranc -o "$GITHUB_WORKSPACE/out/vhda-getdump" -framework IOKit -framework CoreFoundation -Wno-deprecated-declarations || echo "getdump derlenemedi"
           ls "$GITHUB_WORKSPACE/out"
