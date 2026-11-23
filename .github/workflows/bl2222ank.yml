@@ -1720,11 +1720,21 @@ jobs:
           p='vhda/tranc/Info.plist'
           d=plistlib.load(open(p,'rb'))
           v=d['IOKitPersonalities']['VoodooHDA']
-          v['IONameMatch']=['HDEF','HDAS']
+          v.pop('IONameMatch',None)
+          v['IOPCIMatch']='0x51c88086'
+          v['IOPCIClassMatch']='0x04030000&0xffff0000'
           v['IOProbeScore']=100000
           v.pop('LayoutId',None)
           plistlib.dump(d,open(p,'wb'))
           print('VoodooHDA Info.plist: HDEF eslesme + yuksek skor')
+          PYEOF
+          # CS8409 70 dugume sahip (0x02-0x47); VoodooHDA 50'den fazlasini reddediyor -> sinir 250
+          python3 - <<'PYEOF'
+          p='vhda/tranc/Parser.cpp'; s=open(p).read()
+          a='if (numNodes < 0 || numNodes > 50) {'; b='if (funcGroup->numNodes > 0 && funcGroup->numNodes < 50)'
+          assert s.count(a)==1 and s.count(b)==1
+          s=s.replace(a,'if (numNodes < 0 || numNodes > 250) {').replace(b,'if (funcGroup->numNodes > 0 && funcGroup->numNodes < 250)')
+          open(p,'w').write(s); print('dugum siniri 250')
           PYEOF
           cd vhda/tranc
           xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -30
