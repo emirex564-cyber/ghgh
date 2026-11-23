@@ -1725,6 +1725,9 @@ jobs:
           v['IOPCIClassMatch']='0x04030000&0xffff0000'
           v['IOProbeScore']=100000
           v.pop('LayoutId',None)
+          v['AllowMSI']=True
+          v['InhibitCache']=True
+          v['VoodooHDAVerboseLevel']=1
           plistlib.dump(d,open(p,'wb'))
           print('VoodooHDA Info.plist: HDEF eslesme + yuksek skor')
           PYEOF
@@ -1734,7 +1737,11 @@ jobs:
           a='if (numNodes < 0 || numNodes > 50) {'; b='if (funcGroup->numNodes > 0 && funcGroup->numNodes < 50)'
           assert s.count(a)==1 and s.count(b)==1
           s=s.replace(a,'if (numNodes < 0 || numNodes > 250) {').replace(b,'if (funcGroup->numNodes > 0 && funcGroup->numNodes < 250)')
-          open(p,'w').write(s); print('dugum siniri 250')
+          # Acilista ses ancak uyku/uyanmadan sonra geliyor: init sonunda uyanma sirasini (D0 + CS8409 verb + commit) tekrarla
+          a2='\taudioCommit(funcGroup);\n//\tdumpMsg("HP switch init...\\n");'
+          assert s.count(a2)==1, 'commit anchor yok'
+          s=s.replace(a2,'\taudioCommit(funcGroup);\n\tIOSleep(100);\n\tpowerup(funcGroup);\n\tapplyAppleALCWakeVerbs(funcGroup);\n\taudioCommit(funcGroup);\n\tlogMsg("Vostro CS8409: wake sirasi acilista tekrarlandi\\n");\n//\tdumpMsg("HP switch init...\\n");')
+          open(p,'w').write(s); print('dugum siniri 250 + acilis wake sirasi')
           PYEOF
           cd vhda/tranc
           xcodebuild -project VoodooHDA_BS.xcodeproj -configuration Release -arch x86_64 CODE_SIGN_IDENTITY=- 2>&1 | tail -30
